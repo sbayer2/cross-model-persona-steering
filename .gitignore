@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Model files (large binaries)
+*.gguf
+*.bin
+*.safetensors
+models/
+model_cache/
+
+# Generated data
+data/vectors/*.json
+data/responses/
+logs/
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# Cache
+*.cache
+.cache/
+transformers_cache/
+huggingface_cache/
+
+# Temporary files
+tmp/
+temp/

@@ -33,8 +33,8 @@ This system implements persona vector extraction and steering based on the metho
 ### Setup
 
 ```bash
-git clone https://github.com/sbayer2/cross-model-persona-steering.git
-cd cross-model-persona-steering
+git clone [repository-url]
+cd persona_vector_system_V4
 chmod +x setup_v4.sh
 ./setup_v4.sh
 ```
