@@ -1,0 +1,196 @@
+/* Custom styles for GPT-OSS Persona Vector System */
+
+body {
+    font-size: .875rem;
+}
+
+.sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    padding: 48px 0 0;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+}
+
+.sidebar-sticky {
+    position: relative;
+    top: 0;
+    height: calc(100vh - 48px);
+    padding-top: .5rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.sidebar .nav-link {
+    font-weight: 500;
+    color: #333;
+}
+
+.sidebar .nav-link.active {
+    color: #2470dc;
+}
+
+.sidebar-heading {
+    font-size: .75rem;
+    text-transform: uppercase;
+}
+
+.vector-item {
+    padding: .5rem 1rem;
+    border-radius: .25rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.vector-item:hover {
+    background-color: rgba(0, 0, 0, .05);
+}
+
+.vector-item.active {
+    background-color: rgba(36, 112, 220, .1);
+    color: #2470dc;
+}
+
+.vector-name-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-right: 10px;
+}
+
+.vector-name {
+    flex-grow: 1;
+}
+
+.delete-vector-btn {
+    margin-left: 8px;
+    padding: 2px 6px;
+    font-size: 16px;
+    line-height: 1;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    border: 1px solid rgba(220, 53, 69, 0.5);
+}
+
+.delete-vector-btn:hover {
+    opacity: 1;
+}
+
+.vector-item.active .delete-vector-btn {
+    border-color: rgba(36, 112, 220, 0.5);
+    color: #2470dc;
+}
+
+.vector-item.active .delete-vector-btn:hover {
+    border-color: #2470dc;
+    color: #2470dc;
+}
+
+.vector-item .badge {
+    flex-shrink: 0;
+}
+
+#generation-status {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1rem;
+}
+
+.card-header {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+.code-snippet {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+    font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.9rem;
+}
+
+/* GPT-OSS specific styling */
+.gptoss-badge {
+    background-color: #17a2b8;
+    color: white;
+}
+
+.memory-usage {
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+.quantization-info {
+    background-color: #e7f3ff;
+    border-left: 4px solid #007bff;
+    padding: 0.5rem;
+    margin: 0.5rem 0;
+}
+
+.generation-warning {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+    margin: 0.5rem 0;
+}
+
+/* Loading states for heavy operations */
+.loading-overlay {
+    position: relative;
+}
+
+.loading-overlay::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+/* Performance indicators */
+.performance-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+}
+
+.performance-indicator.good {
+    background-color: #28a745;
+}
+
+.performance-indicator.moderate {
+    background-color: #ffc107;
+}
+
+.performance-indicator.poor {
+    background-color: #dc3545;
+}
+
+/* Responsive adjustments */
+@media (max-width: 767.98px) {
+    .sidebar {
+        position: static;
+        height: auto;
+        padding-top: 0;
+    }
+}
