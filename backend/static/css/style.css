@@ -1,0 +1,267 @@
+/* Custom styles for GPT-OSS Persona Vector System */
+
+body {
+    font-size: .875rem;
+}
+
+.sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    padding: 48px 0 0;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+}
+
+.sidebar-sticky {
+    position: relative;
+    top: 0;
+    height: calc(100vh - 48px);
+    padding-top: .5rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.sidebar .nav-link {
+    font-weight: 500;
+    color: #333;
+}
+
+.sidebar .nav-link .feather {
+    margin-right: 4px;
+    color: #727272;
+}
+
+.sidebar .nav-link.active {
+    color: #2470dc;
+}
+
+.sidebar .nav-link:hover .feather,
+.sidebar .nav-link.active .feather {
+    color: inherit;
+}
+
+.sidebar-heading {
+    font-size: .75rem;
+    text-transform: uppercase;
+}
+
+/* Vector list items */
+.vector-item {
+    display: block;
+    padding: .75rem 1rem;
+    color: #333;
+    text-decoration: none;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    transition: all .2s ease;
+}
+
+.vector-item:hover {
+    background-color: rgba(0,0,0,.05);
+    border-left-color: #007bff;
+    text-decoration: none;
+    color: #333;
+}
+
+.vector-item.active {
+    background-color: rgba(36, 112, 220, .1);
+    border-left-color: #2470dc;
+    color: #2470dc;
+}
+
+.vector-name-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.vector-name {
+    flex-grow: 1;
+    margin-right: .5rem;
+}
+
+.memory-usage {
+    font-size: .75rem;
+    color: #6c757d;
+    margin-top: .25rem;
+}
+
+.delete-vector-btn {
+    opacity: 0;
+    transition: opacity .2s ease;
+    width: 24px;
+    height: 24px;
+    line-height: 1;
+    font-size: .875rem;
+    border: none;
+    background: none;
+}
+
+.vector-item:hover .delete-vector-btn {
+    opacity: 1;
+}
+
+.delete-vector-btn:hover {
+    background-color: #dc3545 !important;
+    color: white !important;
+}
+
+/* Content area adjustments */
+main {
+    margin-left: 240px;
+}
+
+@media (max-width: 767.98px) {
+    .sidebar {
+        top: 5rem;
+        padding: 0;
+    }
+    
+    main {
+        margin-left: 0;
+    }
+}
+
+/* Progress bars */
+.progress {
+    height: 8px;
+}
+
+/* Response text styling */
+.response-text {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: .375rem;
+    padding: 1rem;
+    font-family: 'Courier New', monospace;
+    font-size: .875rem;
+    line-height: 1.5;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* Chart containers */
+canvas {
+    max-height: 300px;
+}
+
+/* Form styling */
+.form-range::-webkit-slider-thumb {
+    background: #2470dc;
+}
+
+.form-range::-moz-range-thumb {
+    background: #2470dc;
+    border: none;
+}
+
+/* Alert customizations */
+.alert {
+    border: none;
+    border-radius: .5rem;
+}
+
+/* Badge styling */
+.badge {
+    font-size: .75em;
+}
+
+/* Card enhancements */
+.card {
+    border: none;
+    box-shadow: 0 .125rem .25rem rgba(0,0,0,.075);
+    border-radius: .5rem;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0,0,0,.125);
+    border-radius: .5rem .5rem 0 0 !important;
+}
+
+/* Button enhancements */
+.btn {
+    border-radius: .375rem;
+    font-weight: 500;
+}
+
+/* Tab styling */
+.nav-tabs {
+    border-bottom: 2px solid #e9ecef;
+}
+
+.nav-tabs .nav-link {
+    border: none;
+    border-radius: .5rem .5rem 0 0;
+    font-weight: 500;
+    color: #6c757d;
+}
+
+.nav-tabs .nav-link.active {
+    background-color: #2470dc;
+    color: white;
+    border-color: #2470dc;
+}
+
+.nav-tabs .nav-link:hover:not(.active) {
+    background-color: rgba(36, 112, 220, .1);
+    color: #2470dc;
+    border-color: transparent;
+}
+
+/* Utility classes */
+.text-monospace {
+    font-family: 'Courier New', monospace !important;
+}
+
+.border-start {
+    border-left: 3px solid #2470dc !important;
+}
+
+/* Animation utilities */
+.fade-in {
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Loading states */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255,255,255,.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .btn-group .btn {
+        font-size: .75rem;
+        padding: .25rem .5rem;
+    }
+    
+    .response-text {
+        font-size: .75rem;
+        padding: .75rem;
+    }
+}
+
+/* Dark mode support (future enhancement) */
+@media (prefers-color-scheme: dark) {
+    /* Dark mode styles can be added here */
+}
