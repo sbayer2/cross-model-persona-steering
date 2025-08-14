@@ -473,12 +473,32 @@ def _generate_hf_response(model, tokenizer, model_id, system_prompt, user_prompt
     if hasattr(model, 'device'):
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
     
-    # Calculate generation parameters based on persona vectors
-    base_temp = 0.3
-    base_top_p = 0.8         
-    base_rep_penalty = 1.05
+    # Setup steering: Chen et al. activation injection for Qwen when steering, neutral otherwise
+    steering_hooks = []
     
-    if persona_vectors and steering_coefficient != 0.0:
+    if steering_coefficient == 0.0 or not persona_vectors:
+        # NO STEERING: Completely neutral generation (baseline)
+        logger.info(f"Using NO STEERING (neutral baseline) for {model_id}")
+        temperature = 0.7
+        top_p = 0.9
+        repetition_penalty = 1.1
+        
+    elif "qwen" in model_id.lower():
+        # Use Chen et al. layer 20 activation injection for Qwen models when steering
+        logger.info(f"Using Chen et al. activation injection for {model_id}")
+        steering_hooks = _setup_chen_layer20_injection(model, persona_vectors, steering_coefficient)
+        # Use neutral generation parameters since steering is done via activation injection
+        temperature = 0.7
+        top_p = 0.9
+        repetition_penalty = 1.1
+        
+    else:
+        # Use parameter-based steering for non-Qwen models (fallback)
+        logger.info(f"Using parameter-based steering for {model_id}")
+        base_temp = 0.3
+        base_top_p = 0.8         
+        base_rep_penalty = 1.05
+        
         target_layer = len(list(persona_vectors.keys())) // 2
         target_layer_name = f"layer_{target_layer}"
         
@@ -488,23 +508,19 @@ def _generate_hf_response(model, tokenizer, model_id, system_prompt, user_prompt
                 magnitude_factor = min(np.linalg.norm(vector) / 100.0, 1.5)
                 
                 if steering_coefficient > 0:
-                    # Increase creativity for positive steering (silly/inattentive)
                     temperature = min(base_temp * (1 + magnitude_factor * abs(steering_coefficient) * 1.5), 0.9)
                     top_p = min(base_top_p * (1 + abs(steering_coefficient) * 0.2), 0.95)
                     repetition_penalty = max(base_rep_penalty * (1 - abs(steering_coefficient) * 0.1), 0.9)
                 else:
-                    # Decrease randomness for negative steering (serious/attentive)
                     temperature = max(base_temp * (1 - magnitude_factor * abs(steering_coefficient) * 0.5), 0.1)
                     top_p = max(base_top_p * (1 - abs(steering_coefficient) * 0.2), 0.5)
                     repetition_penalty = min(base_rep_penalty * (1 + abs(steering_coefficient) * 0.2), 1.3)
                 
-                logger.info(f"HF persona steering: temp={temperature:.2f}, top_p={top_p:.2f}, rep_penalty={repetition_penalty:.2f}")
+                logger.info(f"HF parameter steering: temp={temperature:.2f}, top_p={top_p:.2f}, rep_penalty={repetition_penalty:.2f}")
             else:
                 temperature, top_p, repetition_penalty = base_temp, base_top_p, base_rep_penalty
         else:
             temperature, top_p, repetition_penalty = base_temp, base_top_p, base_rep_penalty
-    else:
-        temperature, top_p, repetition_penalty = base_temp, base_top_p, base_rep_penalty
     
     try:
         from transformers import GenerationConfig
@@ -543,11 +559,11 @@ def _generate_hf_response(model, tokenizer, model_id, system_prompt, user_prompt
         raise e
         
     finally:
-        # Always remove steering hooks after generation
+        # Always remove Chen et al. steering hooks after generation
         if steering_hooks:
             for hook in steering_hooks:
                 hook.remove()
-            logger.info(f"Removed {len(steering_hooks)} steering hooks")
+            logger.info(f"Removed {len(steering_hooks)} Chen et al. steering hooks")
 
 def _setup_minimal_steering_hook(model, target_layer_name, persona_vector, steering_coefficient):
     """
@@ -729,6 +745,141 @@ def _setup_steering_hooks(model, persona_vectors, steering_coefficient):
     
     else:
         logger.warning("Could not find transformer layers for steering hook attachment")
+    
+    return hooks
+
+def _setup_chen_layer20_injection(model, persona_vectors, steering_coefficient):
+    """
+    Chen et al. (2024) style layer 20 activation injection for HuggingFace models.
+    Injects persona vector directly into layer 20 activations during forward pass.
+    
+    Args:
+        model: HuggingFace transformer model (e.g., Qwen2.5-7B)
+        persona_vectors: Dict of layer_name -> numpy array
+        steering_coefficient: Strength multiplier for vector injection
+        
+    Returns:
+        List of hook handles to remove later
+    """
+    hooks = []
+    
+    # Only inject at layer 20 (following Chen et al. methodology)
+    target_layer_name = "layer_20"
+    
+    # Debug: List all available vector layers
+    logger.info(f"Available persona vector layers: {list(persona_vectors.keys())}")
+    
+    if target_layer_name not in persona_vectors:
+        logger.warning(f"No persona vector found for {target_layer_name}, skipping Chen injection")
+        # Try to find the closest layer if layer_20 doesn't exist
+        available_layers = [k for k in persona_vectors.keys() if k.startswith('layer_')]
+        if available_layers:
+            # Use middle layer as fallback
+            middle_idx = len(available_layers) // 2
+            target_layer_name = available_layers[middle_idx]
+            logger.info(f"Using fallback layer: {target_layer_name}")
+        else:
+            return hooks
+    
+    try:
+        # Extract layer number from target_layer_name (e.g., "layer_20" -> 20)
+        layer_num = int(target_layer_name.split('_')[1])
+        target_layer = model.model.layers[layer_num]
+        logger.info(f"Targeting model layer {layer_num} for Chen injection")
+        device = next(model.parameters()).device
+        model_dtype = next(model.parameters()).dtype
+        
+        # Prepare persona vector
+        persona_vector = persona_vectors[target_layer_name]
+        if not isinstance(persona_vector, np.ndarray):
+            logger.error(f"Persona vector for {target_layer_name} is not a numpy array")
+            return hooks
+            
+        vector_tensor = torch.from_numpy(persona_vector).to(dtype=model_dtype, device=device)
+        
+        # Debug: Check if vector has meaningful values
+        vector_norm = torch.norm(vector_tensor).item()
+        vector_mean = torch.mean(vector_tensor).item()
+        vector_std = torch.std(vector_tensor).item()
+        logger.info(f"Persona vector stats: norm={vector_norm:.6f}, mean={vector_mean:.6f}, std={vector_std:.6f}")
+        
+        if vector_norm < 1e-6:
+            logger.error(f"Persona vector is essentially zero! norm={vector_norm}")
+            return hooks
+        
+        scaled_vector = vector_tensor * steering_coefficient
+        
+        logger.info(f"Chen et al. injection: layer {layer_num}, coefficient {steering_coefficient}, vector shape {scaled_vector.shape}")
+        
+        def chen_injection_hook(module, input, output):
+            """
+            Inject persona vector into layer 20 activations at final token position.
+            Following Chen et al. (2024) methodology exactly.
+            """
+            try:
+                logger.info(f"Chen injection hook triggered on layer 20 with coefficient {steering_coefficient}")
+                # Handle tuple output (hidden_states, attention_weights, etc.)
+                if isinstance(output, tuple):
+                    hidden_states = output[0]
+                    other_outputs = output[1:]
+                else:
+                    hidden_states = output
+                    other_outputs = ()
+                
+                # Get dimensions: [batch_size, seq_len, hidden_size]
+                if len(hidden_states.shape) != 3:
+                    logger.warning(f"Unexpected hidden_states shape: {hidden_states.shape}")
+                    return output
+                    
+                batch_size, seq_len, hidden_size = hidden_states.shape
+                
+                # Verify vector dimensions match hidden size
+                if scaled_vector.shape[0] != hidden_size:
+                    logger.error(f"Vector dimension mismatch: {scaled_vector.shape[0]} vs {hidden_size}")
+                    return output
+                
+                # Chen et al. style: Strong injection across ALL sequence positions
+                # Create a new tensor to avoid in-place modification issues
+                modified_hidden_states = hidden_states.clone()
+                
+                # Apply MUCH stronger scaling - the original wasn't strong enough
+                injection_strength = abs(steering_coefficient) * 50.0  # Massive increase
+                effective_vector = scaled_vector * injection_strength
+                
+                # Inject across ALL sequence positions for maximum effect
+                for pos in range(seq_len):
+                    modified_hidden_states[:, pos, :] = modified_hidden_states[:, pos, :] + effective_vector.unsqueeze(0).expand(batch_size, -1)
+                
+                # Debug logging (only on first call to avoid spam)
+                if not hasattr(chen_injection_hook, '_debug_logged'):
+                    injection_norm = torch.norm(effective_vector).item()
+                    logger.info(f"INJECTION DEBUG: effective_vector norm={injection_norm:.6f}, applied to all {seq_len} positions")
+                    chen_injection_hook._debug_logged = True
+                
+                hidden_states = modified_hidden_states
+                
+                # CRITICAL: Return modified output to replace original layer output
+                # The hook MUST return the new output to replace the original
+                if isinstance(output, tuple):
+                    # Preserve the exact structure of the original output
+                    new_output = (hidden_states,) + other_outputs
+                    return new_output
+                else:
+                    return hidden_states
+                    
+            except Exception as e:
+                logger.error(f"Error in Chen injection hook: {e}")
+                return output  # Return unmodified output on error
+        
+        # Register the hook on target layer
+        hook_handle = target_layer.register_forward_hook(chen_injection_hook)
+        hooks.append(hook_handle)
+        
+        logger.info(f"Successfully registered Chen et al. injection hook on layer {layer_num}")
+        
+    except Exception as e:
+        logger.error(f"Failed to setup Chen et al. layer 20 injection: {e}")
+        return []
     
     return hooks
 
