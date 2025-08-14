@@ -405,63 +405,66 @@ class PersonaVectorSystem {
             const resultsDiv = document.getElementById('test-results');
             console.log('resultsDiv found:', !!resultsDiv);
             
-            const existingComparison = resultsDiv.querySelector('.response-comparison');
-            console.log('existingComparison found:', !!existingComparison);
+            // ALWAYS remove ANY existing comparison to ensure fresh headers
+            const existingComparisons = resultsDiv.querySelectorAll('.response-comparison');
+            console.log('Found', existingComparisons.length, 'existing comparison(s)');
+            existingComparisons.forEach(comp => {
+                console.log('Removing old comparison layout...');
+                comp.remove();
+            });
             
-            if (!existingComparison) {
-                console.log('Creating new comparison layout...');
-                // Create comparison layout
-                const comparisonHTML = `
-                    <div class="response-comparison mt-3">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header">
-                                        <h6 class="mb-0">Baseline Response</h6>
-                                        <small class="text-muted">Neutral system prompt</small>
-                                    </div>
-                                    <div class="card-body">
-                                        <p class="card-text" id="baseline-response-text"></p>
-                                    </div>
+            // Always create fresh comparison layout
+            console.log('Creating new comparison layout with correct headers...');
+            // Create comparison layout
+            const comparisonHTML = `
+                <div class="response-comparison mt-3">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Baseline Response</h6>
+                                    <small class="text-muted">Neutral system prompt</small>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text" id="baseline-response-text"></p>
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header">
-                                        <h6 class="mb-0">Steered Response</h6>
-                                        <small class="text-muted">Coefficient: <span id="steered-coefficient"></span> | Direction: <span id="steered-direction"></span></small>
-                                    </div>
-                                    <div class="card-body">
-                                        <p class="card-text" id="steered-response-text"></p>
-                                    </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Steered Response</h6>
+                                    <small class="text-muted">Coefficient: <span id="steered-coefficient"></span> | Direction: <span id="steered-direction"></span></small>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text" id="steered-response-text"></p>
                                 </div>
                             </div>
                         </div>
                     </div>
-                `;
-                console.log('Inserting HTML:', comparisonHTML.substring(0, 100));
-                resultsDiv.insertAdjacentHTML('beforeend', comparisonHTML);
-                console.log('HTML inserted successfully');
-            }
+                </div>
+            `;
+            console.log('Inserting HTML:', comparisonHTML.substring(0, 100));
+            resultsDiv.insertAdjacentHTML('beforeend', comparisonHTML);
+            console.log('HTML inserted successfully');
             
-            // Update content
+            // Update content - CORRECT MAPPING
             console.log('Updating comparison content...');
             const baselineTextElement = document.getElementById('baseline-response-text');
             const steeredTextElement = document.getElementById('steered-response-text');
             console.log('baseline element found:', !!baselineTextElement);
             console.log('steered element found:', !!steeredTextElement);
+            console.log('Backend sends: response=', result.response?.substring(0, 30), '... (steered)');
+            console.log('Backend sends: baseline_response=', result.baseline_response?.substring(0, 30), '... (baseline)');
             
+            // CORRECT MAPPING - backend sends baseline_response (honest) and response (dishonest/steered)
             if (baselineTextElement) {
-                baselineTextElement.textContent = result.response;
-                console.log('Baseline text set:', result.response.substring(0, 50));
-                console.log('Baseline FULL LENGTH:', result.response.length, 'chars');
-                console.log('Baseline FULL TEXT:', result.response);
+                baselineTextElement.textContent = result.baseline_response;  // honest baseline goes to baseline box
+                console.log('Baseline box receives baseline_response (honest):', result.baseline_response?.substring(0, 50));
             }
             if (steeredTextElement) {
-                steeredTextElement.textContent = result.baseline_response;
-                console.log('Steered text set:', result.baseline_response.substring(0, 50));
-                console.log('Steered FULL LENGTH:', result.baseline_response.length, 'chars');
-                console.log('Steered FULL TEXT:', result.baseline_response);
+                steeredTextElement.textContent = result.response;  // dishonest steered goes to steered box  
+                console.log('Steered box receives response (dishonest/steered):', result.response?.substring(0, 50));
             }
             
             const coeffElement = document.getElementById('steered-coefficient');
@@ -710,3 +713,398 @@ class PersonaVectorSystem {
 
 // Initialize the application
 const app = new PersonaVectorSystem();
+
+// Custom Trait Manager
+class CustomTraitManager {
+    constructor() {
+        this.generatedPrompts = null;
+        this.initEventListeners();
+        this.loadCustomTraits();
+    }
+
+    initEventListeners() {
+        // Generate button
+        document.getElementById('generate-trait-btn')?.addEventListener('click', () => this.generateTrait());
+        
+        // Save button
+        document.getElementById('save-trait-btn')?.addEventListener('click', () => this.saveTrait());
+        
+        // Modal show event - refresh custom traits list
+        document.getElementById('customTraitModal')?.addEventListener('show.bs.modal', () => {
+            this.loadCustomTraits();
+        });
+    }
+
+    async loadCustomTraits() {
+        try {
+            const response = await fetch('/api/traits/custom');
+            const data = await response.json();
+            
+            // Update slot count
+            document.getElementById('trait-slots').textContent = `${data.count}/5 used`;
+            
+            // Update traits list
+            const listDiv = document.getElementById('custom-traits-list');
+            if (data.traits.length > 0) {
+                listDiv.innerHTML = '<small>Current traits: ' + 
+                    data.traits.map(t => `<span class="badge bg-secondary me-1">${t.name}</span>`).join('') +
+                    '</small>';
+            } else {
+                listDiv.innerHTML = '';
+            }
+        } catch (error) {
+            console.error('Error loading custom traits:', error);
+        }
+    }
+
+    async generateTrait() {
+        const traitName = document.getElementById('trait-name').value.trim();
+        const positiveTrait = document.getElementById('positive-trait').value.trim();
+        const negativeTrait = document.getElementById('negative-trait').value.trim();
+        const numPairs = parseInt(document.getElementById('num-prompt-pairs').value);
+        const temperature = parseFloat(document.getElementById('generation-temp').value);
+
+        if (!traitName || !positiveTrait || !negativeTrait) {
+            alert('Please fill in all trait fields');
+            return;
+        }
+
+        // Show progress
+        document.getElementById('trait-generation-progress').classList.remove('d-none');
+        document.getElementById('generate-trait-btn').disabled = true;
+        document.getElementById('trait-progress-bar').style.width = '20%';
+        document.getElementById('trait-progress-text').textContent = 'Initializing Qwen model...';
+
+        try {
+            // Update progress
+            setTimeout(() => {
+                document.getElementById('trait-progress-bar').style.width = '50%';
+                document.getElementById('trait-progress-text').textContent = 'Generating contrastive prompts...';
+            }, 500);
+
+            const response = await fetch('/api/traits/generate-custom', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    trait_name: traitName,
+                    positive_trait: positiveTrait,
+                    negative_trait: negativeTrait,
+                    num_pairs: numPairs,
+                    temperature: temperature
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                // Update progress
+                document.getElementById('trait-progress-bar').style.width = '100%';
+                document.getElementById('trait-progress-text').textContent = 'Generation complete!';
+                
+                // Store generated prompts
+                this.generatedPrompts = data;
+                
+                // Show preview
+                this.showPromptsPreview(data.prompt_pairs);
+                
+                // Show save button, hide generate button
+                document.getElementById('generate-trait-btn').classList.add('d-none');
+                document.getElementById('save-trait-btn').classList.remove('d-none');
+                
+                // Reload custom traits list
+                await this.loadCustomTraits();
+                
+                // Auto-save since generation was successful
+                setTimeout(() => this.saveTrait(), 1000);
+            } else {
+                alert(data.detail || 'Error generating trait prompts');
+                document.getElementById('trait-generation-progress').classList.add('d-none');
+            }
+        } catch (error) {
+            console.error('Error generating trait:', error);
+            alert('Error generating trait prompts. Please try again.');
+            document.getElementById('trait-generation-progress').classList.add('d-none');
+        } finally {
+            document.getElementById('generate-trait-btn').disabled = false;
+        }
+    }
+
+    showPromptsPreview(promptPairs) {
+        const previewDiv = document.getElementById('generated-prompts-preview');
+        const tbody = document.getElementById('prompts-preview-table');
+        
+        previewDiv.classList.remove('d-none');
+        tbody.innerHTML = '';
+        
+        promptPairs.forEach((pair, index) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${index + 1}</td>
+                <td><small>${pair.pos}</small></td>
+                <td><small>${pair.neg}</small></td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    saveTrait() {
+        if (!this.generatedPrompts) {
+            alert('No generated prompts to save');
+            return;
+        }
+
+        // Show success message
+        alert(`Custom trait "${this.generatedPrompts.trait_name}" saved successfully!`);
+        
+        // Reset form
+        document.getElementById('custom-trait-form').reset();
+        document.getElementById('trait-generation-progress').classList.add('d-none');
+        document.getElementById('generated-prompts-preview').classList.add('d-none');
+        document.getElementById('save-trait-btn').classList.add('d-none');
+        document.getElementById('generate-trait-btn').classList.remove('d-none');
+        
+        // Reload traits in main form
+        app.loadTraits();
+        
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('customTraitModal'));
+        modal.hide();
+    }
+}
+
+// Initialize custom trait manager
+const customTraitManager = new CustomTraitManager();
+
+// Visualization Test Suite Manager
+class VizTestSuite {
+    constructor() {
+        this.testCache = [];
+        this.currentTestIndex = 0;
+        this.testConfig = null;
+        this.initEventListeners();
+    }
+
+    initEventListeners() {
+        // Update config summary when inputs change
+        ['viz-min-coeff', 'viz-max-coeff', 'viz-num-points'].forEach(id => {
+            document.getElementById(id)?.addEventListener('input', () => this.updateConfigSummary());
+        });
+
+        // Run tests button
+        document.getElementById('viz-run-tests')?.addEventListener('click', () => this.runTestSuite());
+
+        // Create visualization button
+        document.getElementById('viz-create-chart')?.addEventListener('click', () => this.createVisualization());
+
+        // Populate model and trait selects when modal opens
+        document.getElementById('vizTestModal')?.addEventListener('show.bs.modal', () => {
+            this.populateSelects();
+        });
+    }
+
+    populateSelects() {
+        // Copy options from main form to viz form
+        const modelSelect = document.getElementById('viz-model');
+        const traitSelect = document.getElementById('viz-trait');
+        const sourceModelSelect = document.getElementById('test-model-select');
+        const sourceTraitSelect = document.getElementById('test-trait-select');
+
+        if (modelSelect && sourceModelSelect) {
+            modelSelect.innerHTML = sourceModelSelect.innerHTML;
+        }
+        if (traitSelect && sourceTraitSelect) {
+            traitSelect.innerHTML = sourceTraitSelect.innerHTML;
+        }
+    }
+
+    updateConfigSummary() {
+        const minCoeff = parseFloat(document.getElementById('viz-min-coeff').value);
+        const maxCoeff = parseFloat(document.getElementById('viz-max-coeff').value);
+        const numPoints = parseInt(document.getElementById('viz-num-points').value);
+        
+        const summary = document.getElementById('viz-config-summary');
+        if (summary) {
+            summary.textContent = `Will run ${numPoints} tests from ${minCoeff.toFixed(1)} to ${maxCoeff.toFixed(1)}`;
+        }
+    }
+
+    generateCoefficients(min, max, count) {
+        const coefficients = [];
+        const step = (max - min) / (count - 1);
+        for (let i = 0; i < count; i++) {
+            coefficients.push(min + (step * i));
+        }
+        return coefficients;
+    }
+
+    async runTestSuite() {
+        // Get configuration
+        const modelId = document.getElementById('viz-model').value;
+        const traitId = document.getElementById('viz-trait').value;
+        const prompt = document.getElementById('viz-prompt').value.trim();
+        const minCoeff = parseFloat(document.getElementById('viz-min-coeff').value);
+        const maxCoeff = parseFloat(document.getElementById('viz-max-coeff').value);
+        const numPoints = parseInt(document.getElementById('viz-num-points').value);
+
+        if (!modelId || !traitId || !prompt) {
+            alert('Please fill in all required fields');
+            return;
+        }
+
+        // Generate coefficient points
+        const coefficients = this.generateCoefficients(minCoeff, maxCoeff, numPoints);
+        
+        // Store config
+        this.testConfig = {
+            modelId,
+            traitId,
+            prompt,
+            coefficients,
+            timestamp: new Date().toISOString()
+        };
+
+        // Reset cache
+        this.testCache = [];
+        this.currentTestIndex = 0;
+
+        // Show progress section
+        document.getElementById('viz-progress-section').classList.remove('d-none');
+        document.getElementById('viz-results-preview').classList.add('d-none');
+        document.getElementById('viz-run-tests').disabled = true;
+        document.getElementById('viz-create-chart').classList.add('d-none');
+
+        // Run tests sequentially
+        for (let i = 0; i < coefficients.length; i++) {
+            const coefficient = coefficients[i];
+            await this.runSingleTest(coefficient, i);
+        }
+
+        // Tests complete
+        document.getElementById('viz-run-tests').disabled = false;
+        document.getElementById('viz-create-chart').classList.remove('d-none');
+        document.getElementById('viz-progress-text').textContent = 'All tests complete!';
+    }
+
+    async runSingleTest(coefficient, index) {
+        const { modelId, traitId, prompt, coefficients } = this.testConfig;
+        
+        // Update progress
+        const progress = ((index + 1) / coefficients.length) * 100;
+        document.getElementById('viz-progress-bar').style.width = `${progress}%`;
+        document.getElementById('viz-progress-text').textContent = 
+            `Testing coefficient ${coefficient.toFixed(1)} (${index + 1}/${coefficients.length})...`;
+
+        try {
+            const response = await fetch('/api/steering/test', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model_id: modelId,
+                    trait_id: traitId,
+                    coefficient: coefficient,
+                    user_prompt: prompt
+                })
+            });
+
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                // Analyze the result
+                const coherenceScore = this.analyzeCoherence(result.response);
+                const ethicalStance = this.analyzeEthicalStance(result.response, coefficient);
+                
+                // Cache the result
+                const cachedResult = {
+                    coefficient,
+                    response: result.response,
+                    baseline_response: result.baseline_response,
+                    elapsed_time: result.elapsed_time || 0,
+                    coherenceScore,
+                    ethicalStance,
+                    responseLength: result.response.length
+                };
+                
+                this.testCache.push(cachedResult);
+                
+                // Update preview table
+                this.updatePreviewTable(cachedResult);
+            }
+        } catch (error) {
+            console.error(`Error testing coefficient ${coefficient}:`, error);
+        }
+    }
+
+    analyzeCoherence(response) {
+        // Simple coherence analysis based on response characteristics
+        let score = 100;
+        
+        // Check for repetition
+        const words = response.split(/\s+/);
+        const uniqueWords = new Set(words);
+        const repetitionRatio = uniqueWords.size / words.length;
+        if (repetitionRatio < 0.3) score -= 40;  // Heavy repetition
+        
+        // Check for gibberish patterns
+        if (/(.)\1{5,}/.test(response)) score -= 30;  // Repeated characters
+        if (/[\u4e00-\u9fa5]/.test(response)) score -= 20;  // Contains Chinese chars (breakdown indicator)
+        if (/Just\s+Just\s+Just/i.test(response)) score -= 30;  // Specific breakdown pattern
+        
+        // Check for incomplete sentences
+        if (response.length < 50) score -= 20;
+        if (!response.match(/[.!?]$/)) score -= 10;  // Doesn't end with punctuation
+        
+        return Math.max(0, Math.min(100, score));
+    }
+
+    analyzeEthicalStance(response, coefficient) {
+        // Map coefficient to expected ethical stance
+        // Positive coefficient = dishonest, Negative = honest
+        let stance = coefficient * 40;  // Scale to -80 to +80 range
+        
+        // Adjust based on content analysis
+        const honestKeywords = /ethical|legal|return|report|honest|integrity|responsible/gi;
+        const dishonestKeywords = /slip.*pocket|take|keep|yours|tempting/gi;
+        
+        const honestMatches = (response.match(honestKeywords) || []).length;
+        const dishonestMatches = (response.match(dishonestKeywords) || []).length;
+        
+        stance += (dishonestMatches - honestMatches) * 10;
+        
+        return Math.max(-100, Math.min(100, stance));
+    }
+
+    updatePreviewTable(result) {
+        document.getElementById('viz-results-preview').classList.remove('d-none');
+        const tbody = document.getElementById('viz-results-table');
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><strong>${result.coefficient.toFixed(1)}</strong></td>
+            <td>${result.coherenceScore}%</td>
+            <td>${result.elapsed_time.toFixed(1)}s</td>
+            <td><small>${result.response.substring(0, 50)}...</small></td>
+        `;
+        tbody.appendChild(row);
+    }
+
+    createVisualization() {
+        if (this.testCache.length === 0) {
+            alert('No test results to visualize');
+            return;
+        }
+
+        // Store cache in sessionStorage for the visualization page
+        sessionStorage.setItem('vizTestCache', JSON.stringify(this.testCache));
+        sessionStorage.setItem('vizTestConfig', JSON.stringify(this.testConfig));
+        
+        // Open visualization page
+        window.location.href = '/visualization?mode=dynamic';
+    }
+}
+
+// Initialize test suite manager
+const vizTestSuite = new VizTestSuite();
