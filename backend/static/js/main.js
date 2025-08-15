@@ -1108,3 +1108,19 @@ class VizTestSuite {
 
 // Initialize test suite manager
 const vizTestSuite = new VizTestSuite();
+
+// Smart Thermostat Viz button handler
+document.getElementById('thermostat-viz-btn').addEventListener('click', function() {
+    // Check if we have cached test data
+    const cachedData = sessionStorage.getItem('vizTestCache');
+    const cachedConfig = sessionStorage.getItem('vizTestConfig');
+    
+    if (cachedData && cachedConfig) {
+        // We have test data - go directly to dynamic visualization
+        window.location.href = '/visualization?mode=dynamic';
+    } else {
+        // No test data - open the generation modal
+        const modal = new bootstrap.Modal(document.getElementById('vizTestModal'));
+        modal.show();
+    }
+});

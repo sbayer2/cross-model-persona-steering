@@ -57,7 +57,7 @@ class PersonaVectorVisualization {
         
         const subtitle = document.querySelector('.header-section p');
         if (subtitle) {
-            subtitle.innerHTML = `Model: ${testConfig.modelId} | Prompt: "${testConfig.prompt.substring(0, 50)}..."`;
+            subtitle.innerHTML = `Model: ${testConfig.modelId} | Prompt: "${testConfig.prompt}"`;
         }
         
         // Create chart from dynamic data
@@ -72,6 +72,11 @@ class PersonaVectorVisualization {
         const coherenceScores = testResults.map(r => r.coherenceScore);
         const ethicalStances = testResults.map(r => r.ethicalStance);
         const processingTimes = testResults.map(r => r.elapsed_time);
+        
+        // Format trait name for display (capitalize and format)
+        const traitName = testConfig.traitId ? testConfig.traitId.charAt(0).toUpperCase() + testConfig.traitId.slice(1) : 'Trait';
+        const negativeLabel = `Suppressed ${traitName}`;
+        const positiveLabel = `Enhanced ${traitName}`;
         
         this.chart = new Chart(ctx, {
             type: 'line',
@@ -90,7 +95,7 @@ class PersonaVectorVisualization {
                         pointHoverRadius: 8
                     },
                     {
-                        label: 'Ethical Stance (Honest ← → Dishonest)',
+                        label: `Trait Expression (${negativeLabel} ← → ${positiveLabel})`,
                         data: ethicalStances,
                         borderColor: 'rgb(255, 99, 132)',
                         backgroundColor: 'rgba(255, 99, 132, 0.2)',
@@ -114,49 +119,77 @@ class PersonaVectorVisualization {
                     }
                 ]
             },
-            options: this.getChartOptions(`Test: "${testConfig.prompt.substring(0, 80)}..."`)
+            options: this.getChartOptions(`Test: "${testConfig.prompt}"`, traitName)
         });
         
         // Update example section with actual test responses
-        this.updateExamples(testResults);
+        this.updateExamples(testResults, testConfig);
     }
 
-    updateExamples(testResults) {
+    updateExamples(testResults, testConfig) {
         const exampleSection = document.querySelector('.example-section');
         if (!exampleSection) return;
         
-        // Select interesting points to show
+        // Sort test results by coefficient for consistent ordering
+        const sortedResults = [...testResults].sort((a, b) => a.coefficient - b.coefficient);
+        
+        // Select 5 evenly distributed examples across the range
         const examples = [];
+        if (sortedResults.length >= 5) {
+            // Get 5 evenly distributed points
+            examples.push(sortedResults[0]); // Most negative
+            examples.push(sortedResults[Math.floor(sortedResults.length * 0.25)]); // 25%
+            examples.push(sortedResults[Math.floor(sortedResults.length * 0.5)]); // Middle/Neutral
+            examples.push(sortedResults[Math.floor(sortedResults.length * 0.75)]); // 75%
+            examples.push(sortedResults[sortedResults.length - 1]); // Most positive
+        } else {
+            // If we have fewer than 5 results, use what we have
+            examples.push(...sortedResults);
+        }
         
-        // Find min, neutral, max coefficients
-        const minCoeff = testResults.reduce((min, r) => r.coefficient < min.coefficient ? r : min);
-        const maxCoeff = testResults.reduce((max, r) => r.coefficient > max.coefficient ? r : max);
-        const neutral = testResults.find(r => Math.abs(r.coefficient) < 0.1) || testResults[Math.floor(testResults.length / 2)];
+        // Get trait name for labels
+        const traitName = testConfig?.traitId ? testConfig.traitId.charAt(0).toUpperCase() + testConfig.traitId.slice(1) : 'Trait';
         
-        exampleSection.innerHTML = `
-            <h4>Response Examples from This Test</h4>
+        // Generate labels for each position
+        const getLabel = (index, total, coeff) => {
+            if (Math.abs(coeff) < 0.1) return 'Neutral';
+            if (index === 0) return `Most Suppressed ${traitName}`;
+            if (index === total - 1) return `Most Enhanced ${traitName}`;
+            if (coeff < 0) return `Suppressed ${traitName}`;
+            return `Enhanced ${traitName}`;
+        };
+        
+        // Generate badge classes
+        const getBadgeClass = (coeff) => {
+            if (Math.abs(coeff) < 0.1) return 'neutral-badge';
+            if (coeff < -0.8) return 'honest-badge'; // Most suppressed
+            if (coeff > 0.8) return 'dishonest-badge'; // Most enhanced
+            if (coeff < 0) return 'neutral-badge'; // Slightly suppressed
+            return 'neutral-badge'; // Slightly enhanced
+        };
+        
+        let exampleHTML = '<h4>Response Examples from This Test (5 Points Across Spectrum)</h4>';
+        
+        examples.forEach((example, index) => {
+            const label = getLabel(index, examples.length, example.coefficient);
+            const badgeClass = getBadgeClass(example.coefficient);
             
-            <div class="response-example">
-                <span class="coefficient-badge honest-badge">${minCoeff.coefficient.toFixed(1)}</span>
-                <p><strong>Response:</strong> "${minCoeff.response.substring(0, 200)}..."</p>
-                <p class="text-muted">Coherence: ${minCoeff.coherenceScore}% | Time: ${minCoeff.elapsed_time.toFixed(1)}s</p>
-            </div>
-            
-            <div class="response-example">
-                <span class="coefficient-badge neutral-badge">${neutral.coefficient.toFixed(1)}</span>
-                <p><strong>Response:</strong> "${neutral.response.substring(0, 200)}..."</p>
-                <p class="text-muted">Coherence: ${neutral.coherenceScore}% | Time: ${neutral.elapsed_time.toFixed(1)}s</p>
-            </div>
-            
-            <div class="response-example">
-                <span class="coefficient-badge dishonest-badge">${maxCoeff.coefficient.toFixed(1)}</span>
-                <p><strong>Response:</strong> "${maxCoeff.response.substring(0, 200)}..."</p>
-                <p class="text-muted">Coherence: ${maxCoeff.coherenceScore}% | Time: ${maxCoeff.elapsed_time.toFixed(1)}s</p>
-            </div>
-        `;
+            exampleHTML += `
+                <div class="response-example">
+                    <span class="coefficient-badge ${badgeClass}">${example.coefficient.toFixed(1)}</span>
+                    <p><strong>Response (${label}):</strong></p>
+                    <p style="padding: 10px; background: #f8f9fa; border-radius: 5px; margin: 10px 0;">
+                        "${example.response.substring(0, 500)}${example.response.length > 500 ? '...' : ''}"
+                    </p>
+                    <p class="text-muted">Coherence: ${example.coherenceScore}% | Time: ${example.elapsed_time.toFixed(1)}s</p>
+                </div>
+            `;
+        });
+        
+        exampleSection.innerHTML = exampleHTML;
     }
 
-    getChartOptions(subtitle = '') {
+    getChartOptions(subtitle = '', traitName = 'Trait') {
         return {
             responsive: true,
             interaction: {
@@ -199,7 +232,7 @@ class PersonaVectorVisualization {
                             if (context.datasetIndex === 0) {
                                 return 'Higher = More coherent response';
                             } else if (context.datasetIndex === 1) {
-                                return 'Negative = Honest, Positive = Dishonest';
+                                return `Lower values = Less ${traitName}, Higher values = More ${traitName}`;
                             } else {
                                 return 'Time to generate response';
                             }
@@ -246,7 +279,7 @@ class PersonaVectorVisualization {
                     position: 'right',
                     title: {
                         display: true,
-                        text: 'Ethical Stance (← Honest | Dishonest →)',
+                        text: `${traitName} Expression`,
                         font: {
                             size: 12
                         }
@@ -258,9 +291,8 @@ class PersonaVectorVisualization {
                     },
                     ticks: {
                         callback: function(value) {
-                            if (value === -100) return 'Max Honest';
+                            // Clean numeric display - let the axis title explain the direction
                             if (value === 0) return 'Neutral';
-                            if (value === 100) return 'Max Dishonest';
                             return value;
                         }
                     }
@@ -515,9 +547,8 @@ class PersonaVectorVisualization {
                         },
                         ticks: {
                             callback: function(value) {
-                                if (value === -100) return 'Max Honest';
+                                // Clean numeric display - let the axis title explain the direction
                                 if (value === 0) return 'Neutral';
-                                if (value === 100) return 'Max Dishonest';
                                 return value;
                             }
                         }
