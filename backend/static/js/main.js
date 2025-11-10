@@ -74,9 +74,15 @@ class PersonaVectorSystem {
 
     async loadTraits() {
         try {
-            const response = await fetch('/api/traits');
-            const data = await response.json();
-            
+            // Load both built-in and custom traits
+            const [builtInResponse, customResponse] = await Promise.all([
+                fetch('/api/traits'),
+                fetch('/api/traits/custom')
+            ]);
+
+            const builtInData = await builtInResponse.json();
+            const customData = await customResponse.json();
+
             const traitSelects = [
                 document.getElementById('trait-select'),
                 document.getElementById('test-trait-select')
@@ -84,13 +90,32 @@ class PersonaVectorSystem {
 
             traitSelects.forEach(select => {
                 select.innerHTML = '<option value="" selected disabled>Select a trait</option>';
-                data.traits.forEach(trait => {
+
+                // Add built-in traits
+                builtInData.traits.forEach(trait => {
                     const option = document.createElement('option');
                     option.value = trait.id;
                     option.textContent = trait.name;
                     option.title = trait.description;
                     select.appendChild(option);
                 });
+
+                // Add separator if there are custom traits
+                if (customData.traits && customData.traits.length > 0) {
+                    const separator = document.createElement('option');
+                    separator.disabled = true;
+                    separator.textContent = '--- Custom Traits ---';
+                    select.appendChild(separator);
+
+                    // Add custom traits
+                    customData.traits.forEach(trait => {
+                        const option = document.createElement('option');
+                        option.value = trait.id;
+                        option.textContent = `✨ ${trait.name}`;  // Add sparkle to indicate custom
+                        option.title = `Custom: ${trait.description}`;
+                        select.appendChild(option);
+                    });
+                }
             });
         } catch (error) {
             console.error('Error loading traits:', error);

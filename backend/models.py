@@ -69,10 +69,30 @@ AVAILABLE_MODELS = {
         "model_type": "causal_lm",
         "model_class": "AutoModelForCausalLM",
         "tokenizer_class": "AutoTokenizer",
-        "path": "microsoft/DialoGPT-medium", 
+        "path": "microsoft/DialoGPT-medium",
         "description": "DialoGPT Medium (355M) - Conversational Focused",
         "quantization": "none",
         "max_length": 1024,
+        "device_map": "auto"
+    },
+    "llama-3.1-8b-instruct": {
+        "model_type": "causal_lm",
+        "model_class": "AutoModelForCausalLM",
+        "tokenizer_class": "AutoTokenizer",
+        "path": "meta-llama/Llama-3.1-8B-Instruct",
+        "description": "Llama-3.1-8B-Instruct (8B Parameters, 32 Layers) - Meta AI",
+        "quantization": "none",  # Disabled for Apple Silicon
+        "max_length": 4096,
+        "device_map": "auto"
+    },
+    "mistral-7b-instruct-v0.3": {
+        "model_type": "causal_lm",
+        "model_class": "AutoModelForCausalLM",
+        "tokenizer_class": "AutoTokenizer",
+        "path": "mistralai/Mistral-7B-Instruct-v0.3",
+        "description": "Mistral-7B-Instruct-v0.3 (7B Parameters, 32 Layers) - Mistral AI",
+        "quantization": "none",  # Disabled for Apple Silicon
+        "max_length": 4096,
         "device_map": "auto"
     },
     "gpt-oss-20b": {
@@ -132,11 +152,26 @@ def _load_model(model_id):
     if model_id in _loaded_models:
         logger.info(f"Model {model_id} already loaded, returning cached version")
         return _loaded_models[model_id], _loaded_tokenizers[model_id]
-    
+
+    # MEMORY MANAGEMENT: Unload other models before loading large models
+    # This prevents "MPS backend out of memory" errors on Apple Silicon
+    if len(_loaded_models) > 0:
+        logger.info(f"Unloading {len(_loaded_models)} existing model(s) to free memory...")
+        models_to_unload = list(_loaded_models.keys())
+        for existing_model_id in models_to_unload:
+            logger.info(f"  Unloading {existing_model_id}...")
+            unload_model(existing_model_id)
+
+        # Clear MPS cache
+        if torch.backends.mps.is_available():
+            import gc
+            gc.collect()
+            logger.info("✅ Cleared MPS memory cache")
+
     config = _get_model_config(model_id)
     model_type = config["model_type"]
     logger.info(f"Loading {model_id} (type: {model_type})...")
-    
+
     if model_type == "gguf":
         # Handle GGUF models via llama.cpp
         return _load_gguf_model(model_id, config)
@@ -457,8 +492,11 @@ def _generate_hf_response(model, tokenizer, model_id, system_prompt, user_prompt
         # Qwen chat format
         full_prompt = f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
     elif "llama" in model_id.lower():
-        # Llama chat format  
+        # Llama chat format
         full_prompt = f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n{system_prompt}<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{user_prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+    elif "mistral" in model_id.lower():
+        # Mistral chat format
+        full_prompt = f"<s>[INST] {system_prompt}\n\n{user_prompt} [/INST]"
     else:
         # Generic format for GPT-2 etc.
         full_prompt = f"{system_prompt}\n\nHuman: {user_prompt}\n\nAssistant:"
@@ -490,8 +528,9 @@ def _generate_hf_response(model, tokenizer, model_id, system_prompt, user_prompt
         top_p = 0.9
         repetition_penalty = 1.1
 
-    elif "qwen" in model_id.lower():
-        # Use Chen et al. layer 20 activation injection for Qwen models when steering
+    elif any(model_name in model_id.lower() for model_name in ["qwen", "llama", "mistral"]):
+        # Use Chen et al. layer 20 activation injection for Qwen/Llama/Mistral models when steering
+        # These models share the same model.model.layers architecture and support direct activation hooks
         logger.info(f"Using Chen et al. activation injection for {model_id}")
         steering_hooks = _setup_chen_layer20_injection(model, persona_vectors, steering_coefficient)
         # Temperature varies by use case
@@ -991,15 +1030,19 @@ def unload_model(model_id):
         del _loaded_tokenizers[model_id]
         if model_id in _model_configs:
             del _model_configs[model_id]
-        
+
         # Force garbage collection
         import gc
         gc.collect()
-        
+
+        # Clear GPU cache (CUDA or MPS)
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        
+        elif torch.backends.mps.is_available():
+            # Clear MPS cache for Apple Silicon
+            gc.collect()
+
         logger.info(f"Unloaded model {model_id}")
         return True
-    
+
     return False

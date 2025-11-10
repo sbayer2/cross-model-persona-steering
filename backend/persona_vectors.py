@@ -481,20 +481,26 @@ async def apply_persona_steering(model_id, trait_id, steering_coefficient=1.0, u
     if not vector_data:
         logger.info(f"No vectors found for {model_id}, attempting cross-model vector loading...")
         
-        # Try common vector generation models
-        vector_generation_models = ["qwen2.5-7b-instruct", "gpt2-medium", "gpt2"]
-        
+        # Try common vector generation models (prioritize larger instruction-tuned models)
+        vector_generation_models = [
+            "qwen2.5-7b-instruct",
+            "llama-3.1-8b-instruct",
+            "mistral-7b-instruct-v0.3",
+            "gpt2-medium",
+            "gpt2"
+        ]
+
         for vector_model in vector_generation_models:
             logger.info(f"Trying to load vectors from {vector_model}...")
             vector_data = await load_persona_vectors(vector_model, trait_id)
             if vector_data:
                 logger.info(f"✅ Found compatible vectors from {vector_model} for {model_id}")
                 break
-        
+
         if not vector_data:
             return {
                 "success": False,
-                "error": f"No persona vectors found for {model_id} - {trait_id}. Try generating vectors first with a compatible model (qwen2.5-7b-instruct recommended)."
+                "error": f"No persona vectors found for {model_id} - {trait_id}. Try generating vectors first with a compatible model (qwen2.5-7b-instruct, llama-3.1-8b-instruct, or mistral-7b-instruct-v0.3 recommended)."
             }
     
     # Extract the persona vectors for steering
