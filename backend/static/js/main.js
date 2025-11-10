@@ -323,9 +323,21 @@ class PersonaVectorSystem {
         document.getElementById('result-questions').textContent = result.metadata?.total_samples_per_layer || 'N/A';
         document.getElementById('result-time').textContent = `${result.generation_time?.toFixed(1)}s`;
         
-        // Find most effective layer (placeholder for now)
-        document.getElementById('result-layer').textContent = `layer_${Math.floor(result.num_layers / 2)}`;
-        document.getElementById('result-score').textContent = '0.75';
+        // Find most effective layer from actual effectiveness scores
+        let bestLayer = 'N/A';
+        let bestScore = 0;
+
+        if (result.effectiveness_scores && Object.keys(result.effectiveness_scores).length > 0) {
+            Object.entries(result.effectiveness_scores).forEach(([layer, score]) => {
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestLayer = layer;
+                }
+            });
+        }
+
+        document.getElementById('result-layer').textContent = bestLayer;
+        document.getElementById('result-score').textContent = bestScore.toFixed(3);
         
         const now = new Date();
         document.getElementById('result-date').textContent = now.toLocaleString();
@@ -725,14 +737,36 @@ class CustomTraitManager {
     initEventListeners() {
         // Generate button
         document.getElementById('generate-trait-btn')?.addEventListener('click', () => this.generateTrait());
-        
+
         // Save button
         document.getElementById('save-trait-btn')?.addEventListener('click', () => this.saveTrait());
-        
+
         // Modal show event - refresh custom traits list
         document.getElementById('customTraitModal')?.addEventListener('show.bs.modal', () => {
             this.loadCustomTraits();
         });
+
+        // Modal hide event - reset form and state
+        document.getElementById('customTraitModal')?.addEventListener('hide.bs.modal', () => {
+            this.resetModal();
+        });
+    }
+
+    resetModal() {
+        // Reset form
+        document.getElementById('custom-trait-form').reset();
+
+        // Hide/reset progress and preview
+        document.getElementById('trait-generation-progress').classList.add('d-none');
+        document.getElementById('generated-prompts-preview').classList.add('d-none');
+
+        // Reset buttons
+        document.getElementById('save-trait-btn').classList.add('d-none');
+        document.getElementById('generate-trait-btn').classList.remove('d-none');
+        document.getElementById('generate-trait-btn').disabled = false;
+
+        // Clear stored prompts
+        this.generatedPrompts = null;
     }
 
     async loadCustomTraits() {
@@ -746,9 +780,26 @@ class CustomTraitManager {
             // Update traits list
             const listDiv = document.getElementById('custom-traits-list');
             if (data.traits.length > 0) {
-                listDiv.innerHTML = '<small>Current traits: ' + 
-                    data.traits.map(t => `<span class="badge bg-secondary me-1">${t.name}</span>`).join('') +
-                    '</small>';
+                const traitsHtml = data.traits.map(t =>
+                    `<span class="badge bg-secondary me-1">
+                        ${t.name}
+                        <button class="btn-close btn-close-white ms-2"
+                                onclick="customTraitManager.deleteTrait('${t.id}')"
+                                style="font-size: 0.6em;"
+                                title="Delete trait"></button>
+                     </span>`
+                ).join('');
+
+                listDiv.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small>Current traits: ${traitsHtml}</small>
+                        <button class="btn btn-outline-danger btn-sm"
+                                onclick="customTraitManager.resetAllTraits()"
+                                title="Reset all custom traits">
+                            <i class="fas fa-trash"></i> Reset All
+                        </button>
+                    </div>
+                `;
             } else {
                 listDiv.innerHTML = '';
             }
@@ -761,8 +812,6 @@ class CustomTraitManager {
         const traitName = document.getElementById('trait-name').value.trim();
         const positiveTrait = document.getElementById('positive-trait').value.trim();
         const negativeTrait = document.getElementById('negative-trait').value.trim();
-        const numPairs = parseInt(document.getElementById('num-prompt-pairs').value);
-        const temperature = parseFloat(document.getElementById('generation-temp').value);
 
         if (!traitName || !positiveTrait || !negativeTrait) {
             alert('Please fill in all trait fields');
@@ -790,9 +839,9 @@ class CustomTraitManager {
                 body: JSON.stringify({
                     trait_name: traitName,
                     positive_trait: positiveTrait,
-                    negative_trait: negativeTrait,
-                    num_pairs: numPairs,
-                    temperature: temperature
+                    negative_trait: negativeTrait
+                    // Note: num_pairs and temperature are hardcoded in backend
+                    // for Chen et al. (2024) methodology compliance
                 })
             });
 
@@ -805,19 +854,16 @@ class CustomTraitManager {
                 
                 // Store generated prompts
                 this.generatedPrompts = data;
-                
-                // Show preview
-                this.showPromptsPreview(data.prompt_pairs);
+
+                // Show preview with full Chen et al. data (pairs, questions, eval_prompt)
+                this.showPromptsPreview(data);
                 
                 // Show save button, hide generate button
                 document.getElementById('generate-trait-btn').classList.add('d-none');
                 document.getElementById('save-trait-btn').classList.remove('d-none');
-                
+
                 // Reload custom traits list
                 await this.loadCustomTraits();
-                
-                // Auto-save since generation was successful
-                setTimeout(() => this.saveTrait(), 1000);
             } else {
                 alert(data.detail || 'Error generating trait prompts');
                 document.getElementById('trait-generation-progress').classList.add('d-none');
@@ -831,22 +877,42 @@ class CustomTraitManager {
         }
     }
 
-    showPromptsPreview(promptPairs) {
+    showPromptsPreview(traitData) {
         const previewDiv = document.getElementById('generated-prompts-preview');
-        const tbody = document.getElementById('prompts-preview-table');
-        
         previewDiv.classList.remove('d-none');
+
+        // Show prompt pairs (5 instruction pairs)
+        const tbody = document.getElementById('prompts-preview-table');
         tbody.innerHTML = '';
-        
-        promptPairs.forEach((pair, index) => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${index + 1}</td>
-                <td><small>${pair.pos}</small></td>
-                <td><small>${pair.neg}</small></td>
-            `;
-            tbody.appendChild(row);
-        });
+        if (traitData.prompt_pairs) {
+            traitData.prompt_pairs.forEach((pair, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td><small>${pair.pos}</small></td>
+                    <td><small>${pair.neg}</small></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Show evaluation questions (40 questions)
+        const questionsList = document.getElementById('questions-preview-list');
+        questionsList.innerHTML = '';
+        if (traitData.evaluation_questions) {
+            traitData.evaluation_questions.forEach((question) => {
+                const li = document.createElement('li');
+                li.textContent = question;
+                li.classList.add('mb-2');
+                questionsList.appendChild(li);
+            });
+        }
+
+        // Show evaluation prompt template
+        const evalPromptPre = document.getElementById('eval-prompt-preview');
+        if (traitData.eval_prompt) {
+            evalPromptPre.textContent = traitData.eval_prompt;
+        }
     }
 
     saveTrait() {
@@ -855,22 +921,82 @@ class CustomTraitManager {
             return;
         }
 
-        // Show success message
-        alert(`Custom trait "${this.generatedPrompts.trait_name}" saved successfully!`);
-        
-        // Reset form
-        document.getElementById('custom-trait-form').reset();
-        document.getElementById('trait-generation-progress').classList.add('d-none');
-        document.getElementById('generated-prompts-preview').classList.add('d-none');
+        // Show success message using Bootstrap toast/alert instead of blocking alert
+        const traitName = this.generatedPrompts.trait_name;
+
+        // Update progress area to show success
+        const progressDiv = document.getElementById('trait-generation-progress');
+        progressDiv.innerHTML = `
+            <div class="alert alert-success" role="alert">
+                ✅ Custom trait "${traitName}" saved successfully! You can now close this modal.
+            </div>
+        `;
+
+        // Hide save button after clicking
         document.getElementById('save-trait-btn').classList.add('d-none');
-        document.getElementById('generate-trait-btn').classList.remove('d-none');
-        
+
         // Reload traits in main form
         app.loadTraits();
-        
-        // Close modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('customTraitModal'));
-        modal.hide();
+
+        // Note: Do NOT auto-close modal - let user review preview and close manually
+    }
+
+    async deleteTrait(traitId) {
+        if (!confirm('Are you sure you want to delete this custom trait?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/traits/custom/${traitId}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                // Reload the custom traits display
+                this.loadCustomTraits();
+
+                // Reload traits in main form
+                app.loadTraits();
+
+                // Show success message
+                app.showMessage('Custom trait deleted successfully!', 'success');
+            } else {
+                const error = await response.json();
+                app.showMessage(`Error deleting trait: ${error.detail}`, 'danger');
+            }
+        } catch (error) {
+            console.error('Error deleting trait:', error);
+            app.showMessage('Error deleting trait', 'danger');
+        }
+    }
+
+    async resetAllTraits() {
+        if (!confirm('Are you sure you want to delete ALL custom traits? This cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/traits/custom', {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                // Reload the custom traits display
+                this.loadCustomTraits();
+
+                // Reload traits in main form
+                app.loadTraits();
+
+                // Show success message
+                app.showMessage('All custom traits have been reset!', 'success');
+            } else {
+                const error = await response.json();
+                app.showMessage(`Error resetting traits: ${error.detail}`, 'danger');
+            }
+        } catch (error) {
+            console.error('Error resetting traits:', error);
+            app.showMessage('Error resetting traits', 'danger');
+        }
     }
 }
 

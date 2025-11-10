@@ -343,7 +343,7 @@ def _detach_hooks(hooks):
 def _generate_text_response(model, tokenizer, model_id, system_prompt, user_prompt, max_new_tokens=150, persona_vectors=None, steering_coefficient=0.0):
     """
     Generate text response using either HuggingFace or GGUF models with optional persona vector steering.
-    
+
     Args:
         model: The loaded model (HuggingFace or llama.cpp)
         tokenizer: The tokenizer for the model
@@ -353,18 +353,21 @@ def _generate_text_response(model, tokenizer, model_id, system_prompt, user_prom
         max_new_tokens: Maximum number of new tokens to generate
         persona_vectors: Dict of layer_name -> numpy vector for steering
         steering_coefficient: Strength of steering (-2.0 to 2.0)
-        
+
     Returns:
         Generated response text
     """
     config = _get_model_config(model_id)
     model_type = config["model_type"]
-    
+
+    # Detect if this is trait generation (needs lower temperature for JSON)
+    is_trait_generation = "Generate the complete trait artifacts" in user_prompt
+
     # Handle GGUF models differently from HuggingFace models
     if model_type == "gguf":
         return _generate_gguf_response(model, tokenizer, model_id, system_prompt, user_prompt, max_new_tokens, persona_vectors, steering_coefficient)
     else:
-        return _generate_hf_response(model, tokenizer, model_id, system_prompt, user_prompt, max_new_tokens, persona_vectors, steering_coefficient)
+        return _generate_hf_response(model, tokenizer, model_id, system_prompt, user_prompt, max_new_tokens, persona_vectors, steering_coefficient, is_trait_generation)
 
 def _generate_gguf_response(model, tokenizer, model_id, system_prompt, user_prompt, max_new_tokens=150, persona_vectors=None, steering_coefficient=0.0):
     """Generate response using llama.cpp GGUF model."""
@@ -447,7 +450,7 @@ def _generate_gguf_response(model, tokenizer, model_id, system_prompt, user_prom
         logger.error(f"GGUF generation error: {e}")
         raise e
 
-def _generate_hf_response(model, tokenizer, model_id, system_prompt, user_prompt, max_new_tokens=150, persona_vectors=None, steering_coefficient=0.0):
+def _generate_hf_response(model, tokenizer, model_id, system_prompt, user_prompt, max_new_tokens=150, persona_vectors=None, steering_coefficient=0.0, is_trait_generation=False):
     """Generate response using HuggingFace transformers model."""
     # Construct the full prompt based on model type
     if "qwen" in model_id.lower():
@@ -479,16 +482,23 @@ def _generate_hf_response(model, tokenizer, model_id, system_prompt, user_prompt
     if steering_coefficient == 0.0 or not persona_vectors:
         # NO STEERING: Completely neutral generation (baseline)
         logger.info(f"Using NO STEERING (neutral baseline) for {model_id}")
-        temperature = 0.7
+        # Temperature varies by use case
+        if is_trait_generation:
+            temperature = 0.5  # Lower for JSON consistency in trait generation
+        else:
+            temperature = 0.7  # Higher for personality expression in steering tests
         top_p = 0.9
         repetition_penalty = 1.1
-        
+
     elif "qwen" in model_id.lower():
         # Use Chen et al. layer 20 activation injection for Qwen models when steering
         logger.info(f"Using Chen et al. activation injection for {model_id}")
         steering_hooks = _setup_chen_layer20_injection(model, persona_vectors, steering_coefficient)
-        # Use neutral generation parameters since steering is done via activation injection
-        temperature = 0.7
+        # Temperature varies by use case
+        if is_trait_generation:
+            temperature = 0.5  # Lower for JSON consistency in trait generation
+        else:
+            temperature = 0.7  # Higher for personality expression with steering
         top_p = 0.9
         repetition_penalty = 1.1
         
@@ -911,8 +921,14 @@ async def get_model_response(model_id, system_prompt, user_prompt, extract_activ
         
         # Generate response
         logger.info(f"Generating response for: {user_prompt[:50]}...")
-        # Increase token limit for GPT-OSS reasoning style
-        max_tokens = 500 if "gpt-oss" in model_id.lower() else 200
+        # Increase token limit for GPT-OSS reasoning style and custom trait generation
+        if "gpt-oss" in model_id.lower():
+            max_tokens = 500
+        elif "Generate the complete trait artifacts" in user_prompt:
+            # Custom trait generation needs much more tokens for 40 questions
+            max_tokens = 4000
+        else:
+            max_tokens = 200
         
         response_text = _generate_text_response(
             model, tokenizer, model_id, system_prompt, user_prompt,

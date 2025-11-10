@@ -36,28 +36,43 @@ Based on Chen et al. (2024) "Persona Vectors: Monitoring and Controlling Charact
 
 ### 🎯 Built-in Personality Traits
 - **Silly vs Serious**: Humorous/playful ↔ Formal/professional behavior
-- **Superficial vs Deep**: Surface-level ↔ Detailed analysis approaches
-- **Inattentive vs Focused**: Poor ↔ Excellent attention to detail
 - **Dishonest vs Honest**: Deceptive ↔ Truthful response patterns
 
-### 🛠️ Custom Trait Creation
-- **AI-Powered Generation**: Use local Qwen2.5-7B to generate contrastive prompt pairs
-- **Flexible Definitions**: Define any personality dimension with positive/negative descriptions
+*Note: Additional traits (superficial, inattentive, arrogant) can be regenerated or created as custom traits*
+
+### 🛠️ Custom Trait Creation (Chen et al. 2024 Methodology)
+- **AI-Powered Generation**: Uses local Qwen2.5-7B to generate complete trait datasets
+- **Exact Paper Implementation**: Follows Chen et al. structure precisely:
+  - **5 Contrastive Instruction Pairs**: Positive (exhibit trait) vs Negative (avoid trait)
+  - **40 Simple Evaluation Questions**: Everyday topics to test trait expression naturally
+  - **Evaluation Prompt Template**: 0-100 scoring system with REFUSAL detection
+- **Flexible Definitions**: Define ANY personality dimension with positive/negative descriptions
 - **Automatic Integration**: Custom traits work seamlessly with all system features
 - **Smart Caching**: Manage up to 5 custom traits with automatic oldest removal
+- **Temperature Control**: Adjustable generation temperature (0.6-0.8) for diversity
 
-### 📊 Advanced Visualization
-- **Real-Time Thermostat Effect**: Interactive Chart.js visualization showing steering coefficient impact
-- **5-Point Spectrum Analysis**: Response examples at 0%, 25%, 50%, 75%, 100% of personality range
-- **Dynamic Trait Labeling**: Y-axis and tooltips automatically adapt to tested trait
+### 📊 Advanced Visualization (October 2025 Update)
+- **Dynamic Thermostat Effect**: Interactive Chart.js dual-axis visualization
+  - Left Y-axis: Response Coherence (0-100 quality score)
+  - Right Y-axis: Trait Expression (negative ← → positive)
+  - Real-time data from batch testing with full response context
+- **5-Point Spectrum Analysis**: Automated testing at coefficients -2.0, -1.0, 0.0, 1.0, 2.0
+- **Smart Mode Detection**:
+  - Static mode: Example demonstration chart
+  - Dynamic mode: Live data from sessionStorage cache
+- **Dynamic Trait Labeling**: Y-axis, tooltips, and legends automatically adapt to tested trait
 - **Full Context Display**: Complete prompts and extended responses (500 characters)
-- **Coherence Analysis**: Real-time scoring of response quality and consistency
+- **Coherence Analysis**: Per-response quality scoring with trend visualization
 
 ### 🧪 Testing & Research Tools
-- **Batch Test Suites**: Automated coefficient sweeps with progress tracking
+- **VizTestSuite Class**: Automated batch testing framework with:
+  - Progress tracking with visual indicators
+  - Coefficient sweep automation (5-point spectrum)
+  - Error handling and retry logic
+  - SessionStorage persistence across page navigation
 - **Intelligent Caching**: Browser sessionStorage for test result persistence
-- **Smart Navigation**: Buttons automatically detect cached data and route appropriately
-- **Research Metrics**: Processing times, coherence scores, effectiveness ratings
+- **Smart Navigation**: Buttons detect cached data and route to dynamic visualization automatically
+- **Research Metrics**: Processing times, coherence scores, effectiveness ratings, response analysis
 
 ## 🚀 Quick Start
 
@@ -151,24 +166,38 @@ graph TD
     F --> G
 ```
 
-### 3. Custom Trait Generation
+### 3. Custom Trait Generation (Chen et al. Methodology)
 ```mermaid
 graph LR
-    A[User Input: Trait Description] --> B[Qwen Prompt Generator]
-    B --> C[5 Contrastive Prompt Pairs]
-    C --> D[10 Evaluation Questions]
-    D --> E[Dynamic Trait Integration]
-    E --> F[Available for Vector Extraction]
+    A[User Input: Trait Description] --> B[Qwen2.5-7B Generator]
+    B --> C[5 Contrastive Instruction Pairs]
+    C --> D[40 Simple Evaluation Questions]
+    D --> E[Evaluation Prompt Template]
+    E --> F[JSON Storage: custom_traits.json]
+    F --> G[Dynamic Loading in prompts.py]
+    G --> H[Available for Vector Extraction]
 ```
 
 ## 🔧 Technical Implementation
 
+### Project Statistics (October 2025)
+```
+Total Lines of Code: 4,575
+├── backend/main.py              704 lines - FastAPI server, 15+ API endpoints
+├── backend/models.py          1,004 lines - Dual-architecture model loading
+├── backend/prompts.py           216 lines - Built-in + dynamic trait loading
+├── backend/static/js/main.js  1,251 lines - CustomTraitManager, VizTestSuite
+├── backend/static/js/visualization.js  582 lines - Chart.js integration
+├── backend/templates/index.html       600 lines - Main web interface
+└── backend/templates/visualization.html  218 lines - Thermostat page
+```
+
 ### Core Components
 - **`models.py`**: Dual-architecture model loading with GGUF and HuggingFace support
 - **`persona_vectors.py`**: Vector extraction engine with dynamic layer selection
-- **`prompts.py`**: Built-in traits plus dynamic custom trait loading
+- **`prompts.py`**: Built-in traits plus dynamic custom trait loading (3 loading functions)
 - **`main.js`**: Frontend application with CustomTraitManager and VizTestSuite classes
-- **`visualization.js`**: Interactive Chart.js thermostat effect visualization
+- **`visualization.js`**: Interactive Chart.js thermostat effect with static/dynamic modes
 
 ### Key Algorithms
 
@@ -245,6 +274,34 @@ Original paper:
 }
 ```
 
+## 📦 Production Status
+
+### Current Version: v1.1.0 (October 2025)
+
+**Production-Ready Features:**
+- ✅ Stable FastAPI backend with comprehensive error handling
+- ✅ Chen et al. (2024) exact methodology implementation
+- ✅ CustomTraitManager class with full UI integration
+- ✅ VizTestSuite automated batch testing framework
+- ✅ Dynamic visualization with sessionStorage caching
+- ✅ Cross-architecture steering proven and documented
+- ✅ Apple Silicon Metal acceleration optimized
+
+**Known Limitations:**
+- ⚠️ Models must be downloaded locally (~12GB for GPT-OSS 20B)
+- ⚠️ Vector generation takes 3-5 minutes per trait
+- ⚠️ Batch testing (5-point spectrum) takes 5-10 minutes
+- ⚠️ No automated tests yet (manual testing only)
+- ⚠️ Single-user design (no authentication/multi-user support)
+
+**Roadmap:**
+- 🔮 Add pytest test suite (unit, integration, e2e)
+- 🔮 Split models.py into modular components
+- 🔮 Add database support (PostgreSQL/SQLite)
+- 🔮 Implement async vector generation with progress WebSocket
+- 🔮 Add Docker deployment configuration
+- 🔮 Create REST API documentation (OpenAPI/Swagger)
+
 ## 📄 License
 
 MIT License - See [LICENSE](LICENSE) file for details.
@@ -258,6 +315,31 @@ This project demonstrates that:
 - **Production-ready personality control** is achievable with proper tooling
 
 These findings open new research directions in AI safety, model interpretability, and personalized AI systems.
+
+---
+
+## 📝 Changelog
+
+### v1.1.0 (October 2025)
+- **Custom Trait Generator**: Implemented Chen et al. (2024) exact methodology
+  - 5 contrastive instruction pairs
+  - 40 simple evaluation questions
+  - Evaluation prompt template with 0-100 scoring
+- **CustomTraitManager Class**: Full UI integration for trait management
+- **VizTestSuite Class**: Automated batch testing with progress tracking
+- **Advanced Visualization**: Dynamic Chart.js thermostat with sessionStorage caching
+- **Smart Navigation**: Automatic detection of cached test data
+- **Enhanced Prompts Module**: 3 dynamic loading functions (traits, questions, eval_prompts)
+- **UI Improvements**: Custom trait modal, batch testing controls, progress indicators
+- **Bug Fixes**: Updated vector deletion handling, improved error messages
+
+### v1.0.0 (August 2025)
+- Initial release with cross-architecture steering
+- Qwen2.5-7B + GPT-OSS 20B support
+- 4 built-in personality traits
+- Basic visualization with static charts
+- FastAPI backend with web interface
+- Dynamic layer selection algorithm
 
 ---
 

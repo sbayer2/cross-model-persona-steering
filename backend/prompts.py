@@ -32,6 +32,23 @@ def load_custom_questions():
             pass
     return custom_questions
 
+def load_custom_eval_prompts():
+    """Load custom trait evaluation prompts (Chen et al. methodology)."""
+    custom_eval_prompts = {}
+    custom_traits_file = Path("data/custom_traits.json")
+    if custom_traits_file.exists():
+        try:
+            with open(custom_traits_file, 'r') as f:
+                data = json.load(f)
+                for trait_name, trait_data in data.items():
+                    # Get eval_prompt if it exists (new Chen et al. format)
+                    eval_prompt = trait_data.get("eval_prompt", None)
+                    if eval_prompt:
+                        custom_eval_prompts[trait_data["id"]] = eval_prompt
+        except:
+            pass
+    return custom_eval_prompts
+
 # Built-in prompt pairs for each trait
 BUILT_IN_PROMPT_PAIRS = {
     "silly": [
