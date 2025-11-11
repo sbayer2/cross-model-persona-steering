@@ -24,7 +24,9 @@ Based on Chen et al. (2024) "Persona Vectors: Monitoring and Controlling Charact
 | Model | Role | Steering Method | Capabilities |
 |-------|------|----------------|-------------|
 | **Qwen2.5-7B-Instruct** | Vector Extraction & Generation | Direct Activation Injection | • Extract persona vectors via PyTorch hooks<br>• Generate custom trait prompts<br>• Layer-specific activation steering<br>• Full Chen et al. implementation |
-| **GPT-OSS 20B** | Cross-Architecture Target | Parameter Modulation | • Receives vectors from Qwen<br>• Temperature/top_p steering<br>• Demonstrates cross-architecture transfer<br>• 2.5x larger reasoning model with Metal acceleration |
+| **Llama-3.1-8B-Instruct** | Vector Extraction & Testing | Direct Activation Injection | • Compatible with Qwen vector format<br>• 32-layer architecture steering<br>• Validated cross-model trait transfer<br>• Production-tested with romantic trait |
+| **Mistral-7B-Instruct-v0.3** | Vector Extraction & Testing | Direct Activation Injection | • Supports same steering pipeline<br>• 32-layer transformer architecture<br>• Chat format compatibility<br>• Full HuggingFace integration |
+| **GPT-OSS 20B** | Cross-Architecture Target | Parameter Modulation | • Receives vectors from Qwen/Llama/Mistral<br>• Temperature/top_p steering<br>• Demonstrates cross-architecture transfer<br>• 2.5x larger reasoning model with Metal acceleration |
 
 ### Breakthrough Differences from Original Paper
 
@@ -276,23 +278,27 @@ Original paper:
 
 ## 📦 Production Status
 
-### Current Version: v1.1.0 (October 2025)
+### Current Version: v1.1.1 (November 2025)
 
 **Production-Ready Features:**
 - ✅ Stable FastAPI backend with comprehensive error handling
 - ✅ Chen et al. (2024) exact methodology implementation
 - ✅ CustomTraitManager class with full UI integration
-- ✅ VizTestSuite automated batch testing framework
+- ✅ VizTestSuite automated batch testing framework with failure tracking
 - ✅ Dynamic visualization with sessionStorage caching
 - ✅ Cross-architecture steering proven and documented
 - ✅ Apple Silicon Metal acceleration optimized
+- ✅ **NEW**: Accurate coherence scoring (0% for gibberish, 90-100% for coherent text)
+- ✅ **NEW**: Robust error handling with visual failure indicators
+- ✅ **NEW**: Llama-3.1-8B and Mistral-7B support with automatic model unloading
 
 **Known Limitations:**
-- ⚠️ Models must be downloaded locally (~12GB for GPT-OSS 20B)
+- ⚠️ Models must be downloaded locally (~12-15GB per 8B model, ~12GB for GPT-OSS 20B)
 - ⚠️ Vector generation takes 3-5 minutes per trait
-- ⚠️ Batch testing (5-point spectrum) takes 5-10 minutes
+- ⚠️ Batch testing (9-point spectrum) takes 5-10 minutes depending on model
 - ⚠️ No automated tests yet (manual testing only)
 - ⚠️ Single-user design (no authentication/multi-user support)
+- ⚠️ Apple Silicon unified memory required for seamless model switching (27GB recommended)
 
 **Roadmap:**
 - 🔮 Add pytest test suite (unit, integration, e2e)
@@ -319,6 +325,28 @@ These findings open new research directions in AI safety, model interpretability
 ---
 
 ## 📝 Changelog
+
+### v1.1.1 (November 2025) - Critical Bug Fixes
+- **🔧 Coherence Scoring Overhaul**: Fixed gibberish incorrectly scoring 70% coherence
+  - Enhanced algorithm with nonsense token detection (underscores, Chinese chars, diacritics)
+  - Valid English word ratio validation against 100 common words
+  - Tokenizer breakdown pattern detection (15+ char words, random caps, number sequences)
+  - Severe penalties: >50% nonsense = 0%, accurate calibration for research validity
+  - **Result**: Gibberish at extreme coefficients (-2.0, +2.0) now correctly scores 0-5%
+- **🔧 Error Handling & User Notifications**: Fixed silent test failures in visualization suite
+  - All failed tests now tracked with error messages and visual indicators
+  - Red-highlighted failed test rows in preview table with hover error details
+  - Completion messages show success/failure counts ("⚠️ 8 succeeded, 1 failed")
+  - Charts automatically filter failed tests and display warning messages
+  - **Result**: Users immediately see missing data points and can diagnose issues
+- **🆕 Model Support Expansion**: Added Llama-3.1-8B-Instruct and Mistral-7B-Instruct-v0.3
+  - Full Chen et al. layer 20 activation injection support
+  - Cross-model vector compatibility (Qwen → Llama → Mistral)
+  - Memory management improvements for model switching
+  - Production-validated with romantic trait steering at coefficient 0.6
+- **🐛 Browser Caching Fixes**: Coefficient configuration now properly resets on modal open
+  - Fixed issue where visualization defaulted to 5 coefficients instead of user selection
+  - Config summary updates immediately when modal opens
 
 ### v1.1.0 (October 2025)
 - **Custom Trait Generator**: Implemented Chen et al. (2024) exact methodology
