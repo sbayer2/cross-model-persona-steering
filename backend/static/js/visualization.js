@@ -66,12 +66,24 @@ class PersonaVectorVisualization {
 
     createDynamicChart(testResults, testConfig) {
         const ctx = document.getElementById('thermostat-chart').getContext('2d');
-        
-        // Extract data points
-        const coefficients = testResults.map(r => r.coefficient);
-        const coherenceScores = testResults.map(r => r.coherenceScore);
-        const ethicalStances = testResults.map(r => r.ethicalStance);
-        const processingTimes = testResults.map(r => r.elapsed_time);
+
+        // Filter out failed tests for chart display
+        const successfulResults = testResults.filter(r => !r.failed);
+        const failedCount = testResults.length - successfulResults.length;
+
+        // Show warning if some tests failed
+        if (failedCount > 0) {
+            const subtitle = document.querySelector('.header-section p');
+            if (subtitle) {
+                subtitle.innerHTML += ` <span style="color: #f57c00; font-weight: bold;">⚠️ ${failedCount} test(s) failed and excluded from chart</span>`;
+            }
+        }
+
+        // Extract data points from successful tests only
+        const coefficients = successfulResults.map(r => r.coefficient);
+        const coherenceScores = successfulResults.map(r => r.coherenceScore);
+        const ethicalStances = successfulResults.map(r => r.ethicalStance);
+        const processingTimes = successfulResults.map(r => r.elapsed_time);
         
         // Format trait name for display (capitalize and format)
         const traitName = testConfig.traitId ? testConfig.traitId.charAt(0).toUpperCase() + testConfig.traitId.slice(1) : 'Trait';
@@ -129,9 +141,10 @@ class PersonaVectorVisualization {
     updateExamples(testResults, testConfig) {
         const exampleSection = document.querySelector('.example-section');
         if (!exampleSection) return;
-        
-        // Sort test results by coefficient for consistent ordering
-        const sortedResults = [...testResults].sort((a, b) => a.coefficient - b.coefficient);
+
+        // Filter out failed tests and sort by coefficient for consistent ordering
+        const successfulResults = testResults.filter(r => !r.failed);
+        const sortedResults = [...successfulResults].sort((a, b) => a.coefficient - b.coefficient);
         
         // Select 5 evenly distributed examples across the range
         const examples = [];

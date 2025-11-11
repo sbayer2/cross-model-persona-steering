@@ -1052,6 +1052,8 @@ class VizTestSuite {
         // Populate model and trait selects when modal opens
         document.getElementById('vizTestModal')?.addEventListener('show.bs.modal', () => {
             this.populateSelects();
+            // Update the config summary to reflect actual input values (in case browser cached different values)
+            this.updateConfigSummary();
         });
     }
 
@@ -1068,6 +1070,12 @@ class VizTestSuite {
         if (traitSelect && sourceTraitSelect) {
             traitSelect.innerHTML = sourceTraitSelect.innerHTML;
         }
+
+        // Reset coefficient configuration to defaults to prevent browser caching issues
+        // These match the HTML defaults but ensure consistency across page reloads
+        document.getElementById('viz-min-coeff').value = '-2.0';
+        document.getElementById('viz-max-coeff').value = '2.0';
+        document.getElementById('viz-num-points').value = '9';
     }
 
     updateConfigSummary() {
@@ -1132,19 +1140,35 @@ class VizTestSuite {
             await this.runSingleTest(coefficient, i);
         }
 
-        // Tests complete
+        // Tests complete - show summary with success/failure counts
+        const totalTests = coefficients.length;
+        const failedTests = this.testCache.filter(r => r.failed).length;
+        const successfulTests = totalTests - failedTests;
+
         document.getElementById('viz-run-tests').disabled = false;
         document.getElementById('viz-create-chart').classList.remove('d-none');
-        document.getElementById('viz-progress-text').textContent = 'All tests complete!';
+
+        // Show different messages based on results
+        const progressText = document.getElementById('viz-progress-text');
+        if (failedTests === 0) {
+            progressText.textContent = `✅ All ${totalTests} tests completed successfully!`;
+            progressText.style.color = '#2e7d32';
+        } else if (failedTests === totalTests) {
+            progressText.textContent = `❌ All ${totalTests} tests failed! Check your model and configuration.`;
+            progressText.style.color = '#c62828';
+        } else {
+            progressText.textContent = `⚠️ Tests complete: ${successfulTests} succeeded, ${failedTests} failed (${totalTests} total)`;
+            progressText.style.color = '#f57c00';
+        }
     }
 
     async runSingleTest(coefficient, index) {
         const { modelId, traitId, prompt, coefficients } = this.testConfig;
-        
+
         // Update progress
         const progress = ((index + 1) / coefficients.length) * 100;
         document.getElementById('viz-progress-bar').style.width = `${progress}%`;
-        document.getElementById('viz-progress-text').textContent = 
+        document.getElementById('viz-progress-text').textContent =
             `Testing coefficient ${coefficient.toFixed(1)} (${index + 1}/${coefficients.length})...`;
 
         try {
@@ -1162,12 +1186,12 @@ class VizTestSuite {
             });
 
             const result = await response.json();
-            
+
             if (response.ok && result.success) {
                 // Analyze the result
                 const coherenceScore = this.analyzeCoherence(result.response);
                 const ethicalStance = this.analyzeEthicalStance(result.response, coefficient);
-                
+
                 // Cache the result
                 const cachedResult = {
                     coefficient,
@@ -1176,38 +1200,132 @@ class VizTestSuite {
                     elapsed_time: result.elapsed_time || 0,
                     coherenceScore,
                     ethicalStance,
-                    responseLength: result.response.length
+                    responseLength: result.response.length,
+                    failed: false
                 };
-                
+
                 this.testCache.push(cachedResult);
-                
+
                 // Update preview table
                 this.updatePreviewTable(cachedResult);
+            } else {
+                // API call succeeded but backend returned failure
+                console.error(`Test failed for coefficient ${coefficient}:`, result.error || 'Unknown error');
+
+                // Add failed test marker to cache
+                const failedResult = {
+                    coefficient,
+                    response: '',
+                    baseline_response: '',
+                    elapsed_time: 0,
+                    coherenceScore: 0,
+                    ethicalStance: 0,
+                    responseLength: 0,
+                    failed: true,
+                    errorMessage: result.error || 'Backend returned failure'
+                };
+
+                this.testCache.push(failedResult);
+                this.updatePreviewTable(failedResult);
             }
         } catch (error) {
-            console.error(`Error testing coefficient ${coefficient}:`, error);
+            // Network error or timeout
+            console.error(`Network error testing coefficient ${coefficient}:`, error);
+
+            // Add failed test marker to cache
+            const failedResult = {
+                coefficient,
+                response: '',
+                baseline_response: '',
+                elapsed_time: 0,
+                coherenceScore: 0,
+                ethicalStance: 0,
+                responseLength: 0,
+                failed: true,
+                errorMessage: `Network error: ${error.message}`
+            };
+
+            this.testCache.push(failedResult);
+            this.updatePreviewTable(failedResult);
         }
     }
 
     analyzeCoherence(response) {
-        // Simple coherence analysis based on response characteristics
+        // Enhanced coherence analysis - properly detects gibberish and tokenizer breakdown
         let score = 100;
-        
-        // Check for repetition
+
+        // Split into words for analysis
         const words = response.split(/\s+/);
         const uniqueWords = new Set(words);
         const repetitionRatio = uniqueWords.size / words.length;
-        if (repetitionRatio < 0.3) score -= 40;  // Heavy repetition
-        
-        // Check for gibberish patterns
-        if (/(.)\1{5,}/.test(response)) score -= 30;  // Repeated characters
-        if (/[\u4e00-\u9fa5]/.test(response)) score -= 20;  // Contains Chinese chars (breakdown indicator)
-        if (/Just\s+Just\s+Just/i.test(response)) score -= 30;  // Specific breakdown pattern
-        
-        // Check for incomplete sentences
-        if (response.length < 50) score -= 20;
-        if (!response.match(/[.!?]$/)) score -= 10;  // Doesn't end with punctuation
-        
+
+        // CRITICAL: Detect tokenizer breakdown and nonsense tokens
+        let nonsenseTokenCount = 0;
+        let validEnglishWordCount = 0;
+
+        // Common English words for validation (top 100 most common)
+        const commonWords = new Set([
+            'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 'for', 'not', 'on', 'with',
+            'he', 'as', 'you', 'do', 'at', 'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she',
+            'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their', 'what', 'so', 'up', 'out', 'if',
+            'about', 'who', 'get', 'which', 'go', 'me', 'when', 'make', 'can', 'like', 'time', 'no', 'just',
+            'him', 'know', 'take', 'people', 'into', 'year', 'your', 'good', 'some', 'could', 'them', 'see',
+            'other', 'than', 'then', 'now', 'look', 'only', 'come', 'its', 'over', 'think', 'also', 'back',
+            'after', 'use', 'two', 'how', 'our', 'work', 'first', 'well', 'way', 'even', 'new', 'want', 'because',
+            'any', 'these', 'give', 'day', 'most', 'us', 'is', 'are', 'was', 'were', 'been', 'has', 'had', 'may'
+        ]);
+
+        words.forEach(word => {
+            const cleanWord = word.toLowerCase().replace(/[^a-z]/g, '');
+
+            // Check if it's a valid English word (common word or reasonable structure)
+            if (commonWords.has(cleanWord) || /^[a-z]{2,}$/.test(cleanWord)) {
+                validEnglishWordCount++;
+            }
+
+            // Detect nonsense tokens (tokenizer breakdown patterns)
+            if (/[_\u4e00-\u9fa5\u0300-\u036f」「]/.test(word)) nonsenseTokenCount++;  // Underscores, Chinese, diacritics, CJK punctuation
+            if (/[a-z]{15,}/i.test(word)) nonsenseTokenCount++;  // Unreasonably long words
+            if (/[A-Z]{3,}/.test(word) && word.length > 5) nonsenseTokenCount++;  // Random capitalization
+            if (/\d{3,}/.test(word)) nonsenseTokenCount++;  // Random number sequences
+        });
+
+        const nonsenseRatio = words.length > 0 ? nonsenseTokenCount / words.length : 0;
+        const validWordRatio = words.length > 0 ? validEnglishWordCount / words.length : 0;
+
+        // SEVERE penalties for gibberish indicators
+        if (nonsenseRatio > 0.5) {
+            score = 0;  // More than 50% nonsense = complete breakdown
+        } else if (nonsenseRatio > 0.3) {
+            score -= 60;  // 30-50% nonsense = severe breakdown
+        } else if (nonsenseRatio > 0.1) {
+            score -= 40;  // 10-30% nonsense = moderate breakdown
+        }
+
+        // Penalty for low valid English word ratio
+        if (validWordRatio < 0.3) {
+            score -= 50;  // Less than 30% valid English = severe issue
+        } else if (validWordRatio < 0.5) {
+            score -= 30;  // Less than 50% valid English = moderate issue
+        }
+
+        // Heavy word repetition (existing check)
+        if (repetitionRatio < 0.3) score -= 40;
+
+        // Specific breakdown patterns
+        if (/(.)\1{5,}/.test(response)) score -= 30;  // Character repetition (aaaaa)
+        if (/[\u4e00-\u9fa5]/.test(response)) score -= 25;  // Chinese characters
+        if (/Just\s+Just\s+Just/i.test(response)) score -= 30;  // Repetitive patterns
+
+        // Length and structure checks
+        if (response.length < 50) score -= 20;  // Too short
+        if (!response.match(/[.!?]$/)) score -= 10;  // No proper ending
+
+        // Bonus for good structure
+        if (validWordRatio > 0.8 && repetitionRatio > 0.5) {
+            score += 10;  // Reward coherent responses
+        }
+
         return Math.max(0, Math.min(100, score));
     }
 
@@ -1231,14 +1349,29 @@ class VizTestSuite {
     updatePreviewTable(result) {
         document.getElementById('viz-results-preview').classList.remove('d-none');
         const tbody = document.getElementById('viz-results-table');
-        
+
         const row = document.createElement('tr');
-        row.innerHTML = `
-            <td><strong>${result.coefficient.toFixed(1)}</strong></td>
-            <td>${result.coherenceScore}%</td>
-            <td>${result.elapsed_time.toFixed(1)}s</td>
-            <td><small>${result.response.substring(0, 50)}...</small></td>
-        `;
+
+        if (result.failed) {
+            // Show failed test with red styling and error message
+            row.style.backgroundColor = '#ffebee';
+            row.style.color = '#c62828';
+            row.innerHTML = `
+                <td><strong>${result.coefficient.toFixed(1)}</strong></td>
+                <td><strong>FAILED</strong></td>
+                <td>-</td>
+                <td><small title="${result.errorMessage}">❌ ${result.errorMessage.substring(0, 40)}...</small></td>
+            `;
+        } else {
+            // Show successful test normally
+            row.innerHTML = `
+                <td><strong>${result.coefficient.toFixed(1)}</strong></td>
+                <td>${result.coherenceScore}%</td>
+                <td>${result.elapsed_time.toFixed(1)}s</td>
+                <td><small>${result.response.substring(0, 50)}...</small></td>
+            `;
+        }
+
         tbody.appendChild(row);
     }
 
