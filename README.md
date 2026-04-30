@@ -94,9 +94,38 @@ cd cross-model-persona-steering
 chmod +x setup_v4.sh
 ./setup_v4.sh
 
-# Download GPT-OSS 20B model (optional, for cross-model steering)
+# Download GPT-OSS 20B model (optional, for cross-model steering target)
 python download_gptoss.py
 ```
+
+### Optional: Llama 3.1 / Mistral 7B Models
+
+Both models are gated on Hugging Face and require accepting the license once
+in a browser before you can download them locally:
+
+- https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
+- https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3
+
+Then authenticate and download:
+
+```bash
+# Authenticate against Hugging Face (paste a Read token from
+# https://huggingface.co/settings/tokens)
+source venv/bin/activate
+huggingface-cli login
+
+# Download both Llama 3.1 8B Instruct (~15 GB) and Mistral 7B Instruct v0.3 (~14 GB)
+python download_new_models.py
+
+# Or use the transformers-only path (also runs a quick smoke test)
+python download_models_simple.py
+
+# Optional: verify both models load and generate text from the backend
+python test_new_models.py
+```
+
+Models cache to `~/.cache/huggingface/hub/`. Qwen2.5-7B-Instruct is ungated
+and will download automatically the first time you select it in the UI.
 
 ### Running the System
 
@@ -111,6 +140,47 @@ python main.py
 # Open in browser
 open http://127.0.0.1:8000
 ```
+
+### Verifying Metal Acceleration
+
+After install, confirm both PyTorch (MPS) and llama-cpp-python (Metal) are
+GPU-enabled on your Apple Silicon machine:
+
+```bash
+source venv/bin/activate
+python -c "
+import torch, llama_cpp
+print('PyTorch MPS available :', torch.backends.mps.is_available())
+print('llama_supports_gpu    :', llama_cpp.llama_supports_gpu_offload())
+"
+```
+
+Both should print `True`. If `llama_supports_gpu_offload()` is `False`,
+re-run the Metal-enabled install from `setup_v4.sh`:
+`CMAKE_ARGS="-DLLAMA_METAL=on" pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir`.
+
+### Troubleshooting
+
+**`TypeError: unhashable type: 'dict'` when loading `/`**
+Indicates a Starlette ≥1.0 install with old `TemplateResponse(name, {"request": request})`
+call sites. Fixed in v1.1.2 — pull `main` or update both calls in `backend/main.py`
+to the new `TemplateResponse(request, name)` signature.
+
+**`Address already in use` on port 8000**
+A previous backend or reloader process is still bound to the port:
+```bash
+kill -9 $(lsof -ti:8000) 2>/dev/null; sleep 1; lsof -ti:8000 || echo "port 8000 free"
+```
+
+**`401`/`403` from Hugging Face when downloading Llama or Mistral**
+You haven't accepted the gated-model license, or `huggingface-cli login`
+hasn't been run with a token that has access. Both repos require explicit
+acceptance in a browser before any download will succeed.
+
+**Out-of-memory when switching between Qwen / Llama / Mistral**
+The system auto-unloads the previously loaded model on Apple Silicon
+(added in v1.1.0). If it still OOMs, restart the backend between models;
+27 GB+ unified memory is recommended for seamless switching.
 
 ## 🔬 Research Applications
 
@@ -278,7 +348,7 @@ Original paper:
 
 ## 📦 Production Status
 
-### Current Version: v1.1.1 (November 2025)
+### Current Version: v1.1.2 (April 2026)
 
 **Production-Ready Features:**
 - ✅ Stable FastAPI backend with comprehensive error handling
@@ -325,6 +395,24 @@ These findings open new research directions in AI safety, model interpretability
 ---
 
 ## 📝 Changelog
+
+### v1.1.2 (April 2026) - Compatibility & Documentation
+- **🔧 Starlette 1.0 Compatibility**: Migrated both `TemplateResponse` call sites
+  in `backend/main.py` to the new `TemplateResponse(request, name)` signature.
+  Fresh installs that picked up Starlette ≥1.0 had been failing with
+  `TypeError: unhashable type: 'dict'` on every page load.
+- **🏷️ UI Rename**: In-app title changed from "GPT-OSS Persona Vector System"
+  to "Cross Model Persona Vector System" across `main.py`, `index.html`,
+  `main.js`, and `style.css` to better reflect the multi-architecture scope.
+- **📥 Model Download Scripts**: Added `download_new_models.py`,
+  `download_models_simple.py`, and `test_new_models.py` for the
+  Llama-3.1-8B-Instruct and Mistral-7B-Instruct-v0.3 models. Documented the
+  HuggingFace gated-model licence and `huggingface-cli login` steps.
+- **🩹 .gitignore Fix**: `backend/data/vectors/*.json` is now actually
+  ignored (the previous `data/vectors/*.json` pattern didn't match the real
+  path). Added `.Rhistory`.
+- **📖 README**: New "Optional: Llama 3.1 / Mistral 7B Models",
+  "Verifying Metal Acceleration", and "Troubleshooting" sections.
 
 ### v1.1.1 (November 2025) - Critical Bug Fixes
 - **🔧 Coherence Scoring Overhaul**: Fixed gibberish incorrectly scoring 70% coherence
