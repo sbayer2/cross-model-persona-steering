@@ -1,5 +1,5 @@
 """
-FastAPI application for GPT-OSS Persona Vector System.
+FastAPI application for Cross Model Persona Vector System.
 Main server that handles web interface and API endpoints.
 """
 import logging
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
-    title="GPT-OSS Persona Vector System",
+    title="Cross Model Persona Vector System",
     description="Extract and manipulate persona vectors from GPT-OSS 20B model",
     version="1.0.0"
 )
@@ -73,12 +73,12 @@ class NumpyJSONResponse(JSONResponse):
 @app.get("/")
 async def home(request: Request):
     """Serve the main web interface."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 @app.get("/visualization")
 async def visualization(request: Request):
     """Serve the persona vector steering visualization page."""
-    return templates.TemplateResponse("visualization.html", {"request": request})
+    return templates.TemplateResponse(request, "visualization.html")
 
 @app.get("/api/models")
 async def api_get_models():
@@ -692,7 +692,7 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     reload = os.getenv("RELOAD", "true").lower() == "true"
     
-    logger.info("Starting GPT-OSS Persona Vector System")
+    logger.info("Starting Cross Model Persona Vector System")
     logger.info(f"Server will run on http://{host}:{port}")
     logger.info("Use Ctrl+C to stop the server")
     

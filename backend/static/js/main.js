@@ -1,5 +1,5 @@
 /**
- * GPT-OSS Persona Vector System - Main JavaScript
+ * Cross Model Persona Vector System - Main JavaScript
  * Handles UI interactions and API communications
  */
 

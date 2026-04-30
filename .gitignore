@@ -49,9 +49,14 @@ model_cache/
 
 # Generated data
 data/vectors/*.json
+backend/data/vectors/*.json
 data/responses/
+backend/data/responses/
 logs/
 *.log
+
+# R session
+.Rhistory
 
 # Environment variables
 .env
