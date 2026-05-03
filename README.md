@@ -92,6 +92,7 @@ cd cross-model-persona-steering
 
 # Run Apple Silicon optimized setup
 chmod +x setup_v4.sh
+rm -rf venv
 ./setup_v4.sh
 
 # Download GPT-OSS 20B model (optional, for cross-model steering target)
