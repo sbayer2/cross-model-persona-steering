@@ -92,7 +92,8 @@ cd cross-model-persona-steering
 
 # Run Apple Silicon optimized setup
 chmod +x setup_v4.sh
-./setup_v4.sh
+rm -rf venv
+./setup_v4.sh    # answer N to the GPT-OSS prompt
 
 # Download GPT-OSS 20B model (optional, for cross-model steering target)
 python download_gptoss.py
@@ -113,8 +114,11 @@ Then authenticate and download:
 # https://huggingface.co/settings/tokens)
 source venv/bin/activate
 huggingface-cli login
+python -c "from transformers import AutoTokenizer, AutoModelForCausalLM; \
+    AutoTokenizer.from_pretrained('mistralai/Mistral-7B-Instruct-v0.3'); \
+    AutoModelForCausalLM.from_pretrained('mistralai/Mistral-7B-Instruct-v0.3')"
 
-# Download both Llama 3.1 8B Instruct (~15 GB) and Mistral 7B Instruct v0.3 (~14 GB)
+# OR Download both Llama 3.1 8B Instruct (~15 GB) and Mistral 7B Instruct v0.3 (~14 GB)
 python download_new_models.py
 
 # Or use the transformers-only path (also runs a quick smoke test)
@@ -139,6 +143,10 @@ python main.py
 
 # Open in browser
 open http://127.0.0.1:8000
+
+# kill ongoing process in local host if needed (optional)
+kill -9 $(lsof -ti:8000) 2>/dev/null; sleep 1; lsof -ti:8000 || echo "port
+  8000 free"
 ```
 
 ### Verifying Metal Acceleration
