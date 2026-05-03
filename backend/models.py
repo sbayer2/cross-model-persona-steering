@@ -41,38 +41,8 @@ AVAILABLE_MODELS = {
         "tokenizer_class": "AutoTokenizer",
         "path": "Qwen/Qwen2.5-7B-Instruct",
         "description": "Qwen2.5-7B-Instruct (7B Parameters) - Research Paper Model",
-        "quantization": "none",  # Disabled for Apple Silicon
+        "quantization": "none",
         "max_length": 4096,
-        "device_map": "auto"
-    },
-    "gpt2-medium": {
-        "model_type": "causal_lm",
-        "model_class": "AutoModelForCausalLM",
-        "tokenizer_class": "AutoTokenizer", 
-        "path": "gpt2-medium",
-        "description": "GPT-2 Medium (355M Parameters, 24 Layers)",
-        "quantization": "none",
-        "max_length": 1024,
-        "device_map": "auto"
-    },
-    "gpt2": {
-        "model_type": "causal_lm",
-        "model_class": "AutoModelForCausalLM",
-        "tokenizer_class": "AutoTokenizer",
-        "path": "gpt2", 
-        "description": "GPT-2 Base (117M Parameters, 12 Layers) - Small",
-        "quantization": "none",
-        "max_length": 1024,
-        "device_map": "auto"
-    },
-    "dialogpt-medium": {
-        "model_type": "causal_lm",
-        "model_class": "AutoModelForCausalLM",
-        "tokenizer_class": "AutoTokenizer",
-        "path": "microsoft/DialoGPT-medium",
-        "description": "DialoGPT Medium (355M) - Conversational Focused",
-        "quantization": "none",
-        "max_length": 1024,
         "device_map": "auto"
     },
     "llama-3.1-8b-instruct": {

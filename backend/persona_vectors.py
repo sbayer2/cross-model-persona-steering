@@ -486,8 +486,6 @@ async def apply_persona_steering(model_id, trait_id, steering_coefficient=1.0, u
             "qwen2.5-7b-instruct",
             "llama-3.1-8b-instruct",
             "mistral-7b-instruct-v0.3",
-            "gpt2-medium",
-            "gpt2"
         ]
 
         for vector_model in vector_generation_models:
